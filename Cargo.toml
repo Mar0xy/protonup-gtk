@@ -1,6 +1,6 @@
 [package]
 name = "protonup-gtk"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Mar0xy"]
 description = "Install and manage compatibility tools like GE-Proton for Steam and Wine-GE for Lutris"

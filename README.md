@@ -22,6 +22,8 @@ ProtonUp-GTK is a modern, native Linux application inspired by [ProtonUp-Qt](htt
 - ⚙️ **Preferences dialog** for configuration
 - 🔄 **Refresh tool list** to fetch latest versions
 - 📋 **About dialog** with credits and license info
+- 🎯 **NEW: Version selection** - Choose from last 4 releases of each tool
+- 📂 **Expandable tool rows** - Click to see all available versions
 
 ## Screenshots
 
@@ -77,21 +79,32 @@ The application will be available on Flathub.
 
 ## Usage
 
-### Installing a Compatibility Tool
+### Installing a Compatibility Tool (NEW: Version Selection!)
 
 1. Launch ProtonUp-GTK
-2. Browse the list of available compatibility tools
-3. Click the **Install** button next to the tool you want
-4. The button will show "Installing..." while downloading
-5. A toast notification will confirm successful installation
-6. The tool is automatically installed to the appropriate directory:
+2. Click the **Refresh Tool List** button to load available versions
+3. **Click on a tool name** to expand and see all available versions (last 4 releases)
+4. Click the **Install** button next to the version you want
+5. The button will show "Installing..." while downloading
+6. A toast notification will confirm successful installation with version number
+7. The tool is automatically installed to the appropriate directory:
    - **Steam tools** (GE-Proton, Luxtorpeda, dwproton): `~/.steam/root/compatibilitytools.d/`
    - **Lutris tools** (Wine-GE, Spritz-Wine): `~/.local/share/lutris/runners/wine/`
 
+**Example:**
+```
+1. Click "Refresh Tool List"
+2. Click "GE-Proton" to expand
+3. See versions: GE-Proton9-15, GE-Proton9-14, GE-Proton9-13, GE-Proton9-12
+4. Click "Install" next to your preferred version
+5. Toast: "GE-Proton GE-Proton9-14 installed successfully!"
+```
+
 ### Refreshing Tool List
 
-- Click the **Refresh Tool List** button to fetch the latest versions
-- Toast notification shows how many tools were found
+- Click the **Refresh Tool List** button to fetch the **last 4 versions** of each tool
+- Toast notification shows how many tools were loaded
+- Each tool becomes an expandable row showing multiple versions
 
 ### Accessing Preferences
 

@@ -41,6 +41,18 @@
   <content_rating type="oars-1.1" />
   
   <releases>
+    <release version="0.3.0" date="2024-11-01">
+      <description>
+        <p>Multi-version support release</p>
+        <ul>
+          <li>Added version selection: choose from last 4 releases per tool</li>
+          <li>Expandable rows show all available versions</li>
+          <li>Per-version install buttons for flexible version management</li>
+          <li>Enhanced API integration to fetch multiple releases</li>
+          <li>Improved UI with collapsible tool sections</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.2.0" date="2024-11-01">
       <description>
         <p>Functional release with full install capability</p>

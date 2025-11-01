@@ -406,7 +406,7 @@ impl MainWindow {
             .application_name("ProtonUp-GTK")
             .application_icon("com.github.Mar0xy.ProtonUpGtk")
             .developer_name("Mar0xy")
-            .version("0.2.0")
+            .version("0.3.0")
             .comments("Install and manage compatibility tools for Steam and Lutris")
             .website("https://github.com/Mar0xy/protonup-gtk")
             .issue_url("https://github.com/Mar0xy/protonup-gtk/issues")
