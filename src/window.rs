@@ -484,6 +484,11 @@ impl MainWindow {
             .extract_archive_to_specific_dir(&archive_path, &install_path, version)
             .await?;
         
+        // Record installation in database
+        if let Ok(db) = crate::backend::Database::new() {
+            let _ = db.add_installed_runner(version, launcher);
+        }
+        
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
         
@@ -506,6 +511,12 @@ impl MainWindow {
         if version_path.exists() {
             // Delete the directory
             tokio::fs::remove_dir_all(&version_path).await?;
+            
+            // Remove from database
+            if let Ok(db) = crate::backend::Database::new() {
+                let _ = db.remove_installed_runner(version, launcher);
+            }
+            
             Ok(format!("{} deleted successfully!", version))
         } else {
             Err(anyhow::anyhow!("Tool version {} not found", version))
@@ -554,6 +565,11 @@ impl MainWindow {
             .expect("Failed to lock downloader")
             .extract_archive_to_specific_dir(&archive_path, &install_path, &tool.version)
             .await?;
+        
+        // Record installation in database
+        if let Ok(db) = crate::backend::Database::new() {
+            let _ = db.add_installed_runner(&tool.version, &tool.launcher);
+        }
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;

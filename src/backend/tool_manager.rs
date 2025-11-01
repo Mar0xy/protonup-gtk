@@ -54,16 +54,19 @@ pub struct ToolVersion {
     pub download_url: String,
 }
 
+use super::database::Database;
+
 pub struct ToolManager {
     tools: Vec<CompatibilityTool>,
     tools_with_versions: Vec<ToolWithVersions>,
     client: Client,
-    custom_steam_path: Option<std::path::PathBuf>,
-    custom_lutris_path: Option<std::path::PathBuf>,
+    db: Database,
 }
 
 impl ToolManager {
     pub fn new() -> Self {
+        let db = Database::new().expect("Failed to initialize database");
+        
         Self { 
             tools: Vec::new(),
             tools_with_versions: Vec::new(),
@@ -71,8 +74,7 @@ impl ToolManager {
                 .user_agent("ProtonUp-GTK/0.2.0")
                 .build()
                 .expect("Failed to create HTTP client"),
-            custom_steam_path: None,
-            custom_lutris_path: None,
+            db,
         }
     }
 
@@ -354,16 +356,16 @@ impl ToolManager {
     }
 
     pub fn get_install_path(&self, launcher: &Launcher) -> Result<std::path::PathBuf> {
-        // Check if there's a custom path set
+        // Check if there's a custom path set in the database
         match launcher {
             Launcher::Steam => {
-                if let Some(ref custom_path) = self.custom_steam_path {
-                    return Ok(custom_path.clone());
+                if let Ok(Some(custom_path)) = self.db.get_steam_path() {
+                    return Ok(custom_path);
                 }
             }
             Launcher::Lutris => {
-                if let Some(ref custom_path) = self.custom_lutris_path {
-                    return Ok(custom_path.clone());
+                if let Ok(Some(custom_path)) = self.db.get_lutris_path() {
+                    return Ok(custom_path);
                 }
             }
         }
@@ -385,14 +387,20 @@ impl ToolManager {
     }
 
     pub fn set_steam_path(&mut self, path: Option<std::path::PathBuf>) {
-        self.custom_steam_path = path;
+        let _ = self.db.set_steam_path(path.as_ref());
     }
 
     pub fn set_lutris_path(&mut self, path: Option<std::path::PathBuf>) {
-        self.custom_lutris_path = path;
+        let _ = self.db.set_lutris_path(path.as_ref());
     }
 
     pub fn is_tool_installed(&self, tool_name: &str, launcher: &Launcher) -> bool {
+        // First check the database
+        if let Ok(true) = self.db.is_runner_installed(tool_name, launcher) {
+            return true;
+        }
+        
+        // Fall back to filesystem check
         if let Ok(install_path) = self.get_install_path(launcher) {
             // Check if a directory with the tool name exists
             // GE-Proton versions are typically named like "GE-Proton9-7"
