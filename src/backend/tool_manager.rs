@@ -241,7 +241,7 @@ impl ToolManager {
         let mut versions = Vec::new();
         for release in releases {
             if let Some(asset) = release.assets.iter()
-                .find(|a| a.name.contains("Spritz-Wine") && a.name.ends_with(".tar.xz"))
+                .find(|a| a.name.to_lowercase().contains("spritz") && a.name.ends_with(".tar.xz"))
             {
                 versions.push(ToolVersion {
                     version: release.tag_name.clone(),
@@ -272,7 +272,7 @@ impl ToolManager {
 
         let mut versions = Vec::new();
         for release in releases {
-            if let Some(asset) = release.assets.iter().find(|a| a.name.ends_with(".tar.gz")) {
+            if let Some(asset) = release.assets.iter().find(|a| a.name.ends_with(".tar.xz")) {
                 versions.push(ToolVersion {
                     version: release.tag_name.clone(),
                     download_url: asset.browser_download_url.clone(),
@@ -372,7 +372,7 @@ impl ToolManager {
         // Find a Spritz-Wine tar.xz asset (they have various builds)
         let asset = release.assets
             .iter()
-            .find(|a| a.name.contains("Spritz-Wine") && a.name.ends_with(".tar.xz"))
+            .find(|a| a.name.to_lowercase().contains("spritz") && a.name.ends_with(".tar.xz"))
             .ok_or_else(|| anyhow::anyhow!("No Spritz-Wine .tar.xz asset found"))?;
 
         Ok(CompatibilityTool {
@@ -394,11 +394,11 @@ impl ToolManager {
             .json()
             .await?;
 
-        // Find the tar.gz asset
+        // Find the tar.xz asset
         let asset = release.assets
             .iter()
-            .find(|a| a.name.ends_with(".tar.gz"))
-            .ok_or_else(|| anyhow::anyhow!("No .tar.gz asset found for dwproton"))?;
+            .find(|a| a.name.ends_with(".tar.xz"))
+            .ok_or_else(|| anyhow::anyhow!("No .tar.xz asset found for dwproton"))?;
 
         Ok(CompatibilityTool {
             name: "dwproton".to_string(),
