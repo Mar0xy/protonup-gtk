@@ -143,24 +143,4 @@ impl Database {
         
         Ok(count > 0)
     }
-    
-    pub fn get_installed_runners(&self) -> Result<Vec<(String, Launcher)>> {
-        let mut stmt = self.conn.prepare("SELECT version, launcher FROM installed_runners")?;
-        let rows = stmt.query_map([], |row| {
-            let version: String = row.get(0)?;
-            let launcher_str: String = row.get(1)?;
-            let launcher = if launcher_str == "Steam" {
-                Launcher::Steam
-            } else {
-                Launcher::Lutris
-            };
-            Ok((version, launcher))
-        })?;
-        
-        let mut result = Vec::new();
-        for row in rows {
-            result.push(row?);
-        }
-        Ok(result)
-    }
 }

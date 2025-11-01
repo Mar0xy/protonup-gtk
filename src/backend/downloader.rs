@@ -14,10 +14,6 @@ impl Downloader {
         }
     }
 
-    pub async fn download_file(&self, url: &str, destination: &Path) -> Result<()> {
-        self.download_file_with_progress(url, destination, |_progress| {}).await
-    }
-
     pub async fn download_file_with_progress<F>(
         &self,
         url: &str,
@@ -53,20 +49,6 @@ impl Downloader {
         file.flush().await?;
         progress_callback(100.0);
         Ok(())
-    }
-
-    pub async fn extract_archive(&self, archive_path: &Path, extract_to: &Path) -> Result<()> {
-        // Determine archive type by extension
-        let extension = archive_path
-            .extension()
-            .and_then(|e| e.to_str())
-            .unwrap_or("");
-
-        match extension {
-            "gz" | "tgz" => self.extract_tar_gz(archive_path, extract_to).await,
-            "xz" => self.extract_tar_xz(archive_path, extract_to).await,
-            _ => Err(anyhow::anyhow!("Unsupported archive format: {}", extension)),
-        }
     }
 
     pub async fn extract_archive_to_specific_dir(&self, archive_path: &Path, extract_to: &Path, target_dir_name: &str) -> Result<()> {

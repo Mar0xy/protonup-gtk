@@ -523,60 +523,6 @@ impl MainWindow {
         }
     }
 
-    async fn install_tool(
-        tool_name: &str,
-        tool_manager: Arc<Mutex<ToolManager>>,
-        downloader: Arc<Mutex<Downloader>>,
-    ) -> anyhow::Result<String> {
-        // Fetch available tools to get download URL
-        let tools = tool_manager.lock()
-            .expect("Failed to lock tool manager")
-            .fetch_available_tools()
-            .await?;
-        
-        let tool = tools.iter()
-            .find(|t| t.name == tool_name)
-            .ok_or_else(|| anyhow::anyhow!("Tool '{}' not found", tool_name))?;
-        
-        // Get install path
-        let install_path = tool_manager.lock()
-            .expect("Failed to lock tool manager")
-            .get_install_path(&tool.launcher)?;
-        
-        // Create install directory if it doesn't exist
-        tokio::fs::create_dir_all(&install_path).await?;
-        
-        // Determine archive filename from URL
-        let url_path = tool.download_url.split('/').last()
-            .ok_or_else(|| anyhow::anyhow!("Invalid download URL"))?;
-        
-        // Download to temp directory
-        let temp_dir = std::env::temp_dir();
-        let archive_path = temp_dir.join(url_path);
-        
-        // Download the file
-        downloader.lock()
-            .expect("Failed to lock downloader")
-            .download_file(&tool.download_url, &archive_path)
-            .await?;
-        
-        // Extract to install path with specific directory name matching the version
-        downloader.lock()
-            .expect("Failed to lock downloader")
-            .extract_archive_to_specific_dir(&archive_path, &install_path, &tool.version)
-            .await?;
-        
-        // Record installation in database
-        if let Ok(db) = crate::backend::Database::new() {
-            let _ = db.add_installed_runner(&tool.version, &tool.launcher);
-        }
-        
-        // Clean up downloaded archive
-        let _ = tokio::fs::remove_file(&archive_path).await;
-        
-        Ok(format!("{} {} installed successfully!", tool.name, tool.version))
-    }
-
     fn setup_menu(menu_button: &gtk::MenuButton, window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay, tool_manager: Arc<Mutex<ToolManager>>) {
         let menu = gtk::gio::Menu::new();
         
