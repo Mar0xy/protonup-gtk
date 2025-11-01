@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>com.github.Mar0xy.ProtonUpGtk</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>ProtonUp-GTK</name>
+  <summary>Install and manage compatibility tools for Steam and Lutris</summary>
+  
+  <description>
+    <p>
+      ProtonUp-GTK is a graphical tool for installing and managing compatibility tools 
+      like GE-Proton for Steam and Wine-GE for Lutris. It provides a clean, modern interface 
+      built with GTK4 and libadwaita.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Install and manage GE-Proton for Steam</li>
+      <li>Install and manage Wine-GE for Lutris</li>
+      <li>Install and manage Luxtorpeda for Steam</li>
+      <li>Install and manage Spritz-Wine for Lutris</li>
+      <li>Install and manage dwproton for Steam</li>
+      <li>Automatic download and extraction</li>
+      <li>Beautiful libadwaita UI</li>
+      <li>Fast and lightweight</li>
+    </ul>
+  </description>
+  
+  <url type="homepage">https://github.com/Mar0xy/protonup-gtk</url>
+  <url type="bugtracker">https://github.com/Mar0xy/protonup-gtk/issues</url>
+  
+  <developer_name>Mar0xy</developer_name>
+  
+  <launchable type="desktop-id">com.github.Mar0xy.ProtonUpGtk.desktop</launchable>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>Main window</caption>
+    </screenshot>
+  </screenshots>
+  
+  <content_rating type="oars-1.1" />
+  
+  <releases>
+    <release version="0.3.0" date="2024-11-01">
+      <description>
+        <p>Multi-version support release</p>
+        <ul>
+          <li>Added version selection: choose from last 4 releases per tool</li>
+          <li>Expandable rows show all available versions</li>
+          <li>Per-version install buttons for flexible version management</li>
+          <li>Enhanced API integration to fetch multiple releases</li>
+          <li>Improved UI with collapsible tool sections</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.2.0" date="2024-11-01">
+      <description>
+        <p>Functional release with full install capability</p>
+        <ul>
+          <li>Implemented download and installation functionality</li>
+          <li>Added toast notifications for success/error feedback</li>
+          <li>Created preferences dialog for configuration</li>
+          <li>Added about dialog with credits</li>
+          <li>Async operations for non-blocking UI</li>
+          <li>Error handling with user-friendly messages</li>
+        </ul>
+      </description>
+    </release>
+    <release version="0.1.0" date="2024-11-01">
+      <description>
+        <p>Initial release</p>
+        <ul>
+          <li>Support for GE-Proton, Wine-GE, Luxtorpeda, Spritz-Wine, and dwproton</li>
+          <li>Modern GTK4/libadwaita interface</li>
+          <li>GitHub/Forgejo API integration</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  
+  <kudos>
+    <kudo>ModernToolkit</kudo>
+    <kudo>HiDpiIcon</kudo>
+  </kudos>
+  
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+</component>
