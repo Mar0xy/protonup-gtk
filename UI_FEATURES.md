@@ -49,9 +49,8 @@ A preferences group titled "Compatibility Tools" with description "Select a vers
 ##### Supported Tools:
 1. **GE-Proton** (Steam) - Proton compatibility tool with additional fixes
 2. **Wine-GE** (Lutris) - Wine with additional game fixes
-3. **Luxtorpeda** (Steam) - Steam Play compatibility tool for native Linux games
-4. **Spritz-Wine** (Lutris) - Wine builds optimized for gaming performance
-5. **dwproton** (Steam) - Dawn Wine Proton - Proton fork with improvements
+3. **Spritz-Wine** (Lutris) - Wine builds optimized for gaming performance
+4. **dwproton** (Steam) - Dawn Wine Proton - Proton fork with improvements
 
 #### Refresh Button
 - Centered button labeled "Refresh Tool List"
@@ -117,7 +116,6 @@ Shows:
 ### Credits Section: "Compatibility Tools"
 - GE-Proton by GloriousEggroll
 - Wine-GE by GloriousEggroll
-- Luxtorpeda by luxtorpeda-dev
 - Spritz-Wine by NelloKudo
 - dwproton by Dawn Wine
 

@@ -12,7 +12,6 @@ ProtonUp-GTK is a modern, native Linux application inspired by [ProtonUp-Qt](htt
 
 - 🎮 **Install and manage GE-Proton** for Steam
 - 🍷 **Install and manage Wine-GE** for Lutris  
-- 🎯 **Install and manage Luxtorpeda** for Steam
 - 🌟 **Install and manage Spritz-Wine** for Lutris
 - 🌅 **Install and manage dwproton** for Steam
 - 📦 **Automatic download and extraction** of compatibility tools
@@ -96,7 +95,7 @@ The application will be available on Flathub.
 4. The button will show "Installing..." while downloading
 5. A toast notification will confirm successful installation with version number
 6. The tool is automatically installed to the appropriate directory:
-   - **Steam tools** (GE-Proton, Luxtorpeda, dwproton): `~/.steam/root/compatibilitytools.d/`
+   - **Steam tools** (GE-Proton, dwproton): `~/.steam/root/compatibilitytools.d/`
    - **Lutris tools** (Wine-GE, Spritz-Wine): `~/.local/share/lutris/runners/wine/`
 
 **Example:**
@@ -147,7 +146,6 @@ See [UI_FEATURES.md](UI_FEATURES.md) for detailed UI documentation.
 
 - **GE-Proton**: Proton with additional fixes and features from GloriousEggroll
 - **Wine-GE**: Wine with gaming-specific patches
-- **Luxtorpeda**: Steam Play compatibility tool for running native Linux versions of games
 - **Spritz-Wine**: Wine builds optimized for gaming performance
 - **dwproton**: Dawn Wine Proton - Proton fork with improvements
 

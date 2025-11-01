@@ -89,11 +89,6 @@ impl ToolManager {
             tools.push(wine_ge);
         }
 
-        // Fetch Luxtorpeda releases
-        if let Ok(luxtorpeda) = self.fetch_luxtorpeda_latest().await {
-            tools.push(luxtorpeda);
-        }
-
         // Fetch Spritz-Wine releases
         if let Ok(spritz_wine) = self.fetch_spritz_wine_latest().await {
             tools.push(spritz_wine);
@@ -119,11 +114,6 @@ impl ToolManager {
         // Fetch Wine-GE releases (last 4)
         if let Ok(wine_ge_versions) = self.fetch_wine_ge_versions(4).await {
             tools.push(wine_ge_versions);
-        }
-
-        // Fetch Luxtorpeda releases (last 4)
-        if let Ok(luxtorpeda_versions) = self.fetch_luxtorpeda_versions(4).await {
-            tools.push(luxtorpeda_versions);
         }
 
         // Fetch Spritz-Wine releases (last 4)
@@ -196,36 +186,6 @@ impl ToolManager {
             name: "Wine-GE".to_string(),
             description: "Wine with additional game fixes".to_string(),
             launcher: Launcher::Lutris,
-            versions,
-        })
-    }
-
-    async fn fetch_luxtorpeda_versions(&self, count: usize) -> Result<ToolWithVersions> {
-        let url = format!(
-            "https://api.github.com/repos/luxtorpeda-dev/luxtorpeda/releases?per_page={}",
-            count
-        );
-        let releases: Vec<GitHubRelease> = self.client
-            .get(&url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        let mut versions = Vec::new();
-        for release in releases {
-            if let Some(asset) = release.assets.iter().find(|a| a.name.ends_with(".tar.xz")) {
-                versions.push(ToolVersion {
-                    version: release.tag_name.clone(),
-                    download_url: asset.browser_download_url.clone(),
-                });
-            }
-        }
-
-        Ok(ToolWithVersions {
-            name: "Luxtorpeda".to_string(),
-            description: "Steam Play compatibility tool for native Linux games".to_string(),
-            launcher: Launcher::Steam,
             versions,
         })
     }
@@ -335,30 +295,6 @@ impl ToolManager {
             name: "Wine-GE".to_string(),
             description: "Wine with additional game fixes".to_string(),
             launcher: Launcher::Lutris,
-            download_url: asset.browser_download_url.clone(),
-            version: release.tag_name.clone(),
-        })
-    }
-
-    async fn fetch_luxtorpeda_latest(&self) -> Result<CompatibilityTool> {
-        let url = "https://api.github.com/repos/luxtorpeda-dev/luxtorpeda/releases/latest";
-        let release: GitHubRelease = self.client
-            .get(url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        // Find the tar.xz asset
-        let asset = release.assets
-            .iter()
-            .find(|a| a.name.ends_with(".tar.xz"))
-            .ok_or_else(|| anyhow::anyhow!("No .tar.xz asset found for Luxtorpeda"))?;
-
-        Ok(CompatibilityTool {
-            name: "Luxtorpeda".to_string(),
-            description: "Steam Play compatibility tool for native Linux games".to_string(),
-            launcher: Launcher::Steam,
             download_url: asset.browser_download_url.clone(),
             version: release.tag_name.clone(),
         })

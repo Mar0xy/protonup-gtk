@@ -762,7 +762,6 @@ impl MainWindow {
             &[
                 "GE-Proton by GloriousEggroll",
                 "Wine-GE by GloriousEggroll",
-                "Luxtorpeda by luxtorpeda-dev",
                 "Spritz-Wine by NelloKudo",
                 "dwproton by Dawn Wine",
             ],
