@@ -430,11 +430,11 @@ impl MainWindow {
             })
             .await?;
         
-        // Extract to install path
+        // Extract to install path with specific directory name matching the version
         progress_callback("Extracting...".to_string());
         downloader.lock()
             .expect("Failed to lock downloader")
-            .extract_archive(&archive_path, &install_path)
+            .extract_archive_to_specific_dir(&archive_path, &install_path, version)
             .await?;
         
         // Clean up downloaded archive
@@ -502,10 +502,10 @@ impl MainWindow {
             .download_file(&tool.download_url, &archive_path)
             .await?;
         
-        // Extract to install path
+        // Extract to install path with specific directory name matching the version
         downloader.lock()
             .expect("Failed to lock downloader")
-            .extract_archive(&archive_path, &install_path)
+            .extract_archive_to_specific_dir(&archive_path, &install_path, &tool.version)
             .await?;
         
         // Clean up downloaded archive
