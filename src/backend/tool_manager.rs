@@ -44,7 +44,7 @@ struct GitHubAsset {
 pub struct ToolWithVersions {
     pub name: String,
     pub description: String,
-    pub launcher: Launcher,
+    pub default_launcher: Launcher,  // Changed from 'launcher' to 'default_launcher' for clarity
     pub versions: Vec<ToolVersion>,
 }
 
@@ -155,7 +155,7 @@ impl ToolManager {
         Ok(ToolWithVersions {
             name: "GE-Proton".to_string(),
             description: "Proton compatibility tool with additional fixes".to_string(),
-            launcher: Launcher::Steam,
+            default_launcher: Launcher::Steam,
             versions,
         })
     }
@@ -185,7 +185,7 @@ impl ToolManager {
         Ok(ToolWithVersions {
             name: "Wine-GE".to_string(),
             description: "Wine with additional game fixes".to_string(),
-            launcher: Launcher::Lutris,
+            default_launcher: Launcher::Lutris,
             versions,
         })
     }
@@ -217,7 +217,7 @@ impl ToolManager {
         Ok(ToolWithVersions {
             name: "Spritz-Wine".to_string(),
             description: "Wine builds optimized for gaming performance".to_string(),
-            launcher: Launcher::Lutris,
+            default_launcher: Launcher::Lutris,
             versions,
         })
     }
@@ -247,7 +247,7 @@ impl ToolManager {
         Ok(ToolWithVersions {
             name: "dwproton".to_string(),
             description: "Dawn Wine Proton - Proton fork with improvements".to_string(),
-            launcher: Launcher::Steam,
+            default_launcher: Launcher::Steam,
             versions,
         })
     }

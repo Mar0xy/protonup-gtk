@@ -244,12 +244,7 @@ impl MainWindow {
             .subtitle(&tool.description)
             .build();
         
-        // Add launcher badge
-        let launcher_text = tool.launcher.to_string();
-        let badge = Label::new(Some(&launcher_text));
-        badge.add_css_class("caption");
-        badge.add_css_class("dim-label");
-        expander.add_suffix(&badge);
+        // Remove the fixed launcher badge - users will now choose per installation
         
         // Add version rows
         for version in &tool.versions {
@@ -257,10 +252,25 @@ impl MainWindow {
                 .title(&version.version)
                 .build();
             
-            // Check if this version is already installed
-            let is_installed = tool_manager.lock()
+            // Create launcher selector dropdown
+            let launcher_model = gtk::StringList::new(&["Steam", "Lutris"]);
+            let launcher_dropdown = gtk::DropDown::builder()
+                .model(&launcher_model)
+                .selected(if tool.default_launcher == crate::backend::Launcher::Steam { 0 } else { 1 })
+                .valign(gtk::Align::Center)
+                .build();
+            
+            // Check installation status for both launchers
+            let is_installed_steam = tool_manager.lock()
                 .expect("Failed to lock tool manager")
-                .is_tool_installed(&version.version, &tool.launcher);
+                .is_tool_installed(&version.version, &crate::backend::Launcher::Steam);
+            let is_installed_lutris = tool_manager.lock()
+                .expect("Failed to lock tool manager")
+                .is_tool_installed(&version.version, &crate::backend::Launcher::Lutris);
+            
+            // Determine initial button state based on selected launcher
+            let initial_selected = launcher_dropdown.selected();
+            let is_installed = if initial_selected == 0 { is_installed_steam } else { is_installed_lutris };
             
             let action_button = Button::builder()
                 .label(if is_installed { "Delete" } else { "Install" })
@@ -273,11 +283,39 @@ impl MainWindow {
                 action_button.add_css_class("suggested-action");
             }
             
+            // Update button when launcher selection changes
+            let action_button_for_dropdown = action_button.clone();
+            let version_for_dropdown = version.version.clone();
+            let tool_manager_for_dropdown = tool_manager.clone();
+            launcher_dropdown.connect_selected_notify(move |dropdown| {
+                let selected = dropdown.selected();
+                let launcher = if selected == 0 {
+                    crate::backend::Launcher::Steam
+                } else {
+                    crate::backend::Launcher::Lutris
+                };
+                
+                let is_installed = tool_manager_for_dropdown.lock()
+                    .expect("Failed to lock tool manager")
+                    .is_tool_installed(&version_for_dropdown, &launcher);
+                
+                action_button_for_dropdown.remove_css_class("suggested-action");
+                action_button_for_dropdown.remove_css_class("destructive-action");
+                
+                if is_installed {
+                    action_button_for_dropdown.set_label("Delete");
+                    action_button_for_dropdown.add_css_class("destructive-action");
+                } else {
+                    action_button_for_dropdown.set_label("Install");
+                    action_button_for_dropdown.add_css_class("suggested-action");
+                }
+            });
+            
             // Clone for closure
             let download_url = version.download_url.clone();
             let version_str = version.version.clone();
             let tool_name = tool.name.clone();
-            let launcher = tool.launcher.clone();
+            let launcher_dropdown_for_button = launcher_dropdown.clone();
             let tool_manager_clone = tool_manager.clone();
             let downloader_clone = downloader.clone();
             let toast_overlay_clone = toast_overlay.clone();
@@ -288,7 +326,15 @@ impl MainWindow {
                 let download_url = download_url.clone();
                 let version = version_str.clone();
                 let tool_name = tool_name.clone();
-                let launcher = launcher.clone();
+                
+                // Get selected launcher from dropdown
+                let selected = launcher_dropdown_for_button.selected();
+                let launcher = if selected == 0 {
+                    crate::backend::Launcher::Steam
+                } else {
+                    crate::backend::Launcher::Lutris
+                };
+                
                 let tool_manager = tool_manager_clone.clone();
                 let downloader = downloader_clone.clone();
                 let toast_overlay = toast_overlay_clone.clone();
@@ -384,6 +430,7 @@ impl MainWindow {
                 }
             });
             
+            version_row.add_suffix(&launcher_dropdown);
             version_row.add_suffix(&action_button);
             expander.add_row(&version_row);
         }
