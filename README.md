@@ -10,13 +10,18 @@ ProtonUp-GTK is a modern, native Linux application inspired by [ProtonUp-Qt](htt
 
 ### Features
 
-- 🎮 Install and manage GE-Proton for Steam
-- 🍷 Install and manage Wine-GE for Lutris  
-- 🎯 Install and manage Luxtorpeda for Steam
-- 📦 Automatic download and extraction of compatibility tools
-- 🎨 Beautiful libadwaita UI that follows GNOME HIG
-- ⚡ Fast and lightweight, written in Rust
-- 🔄 Automatic updates and version management
+- 🎮 **Install and manage GE-Proton** for Steam
+- 🍷 **Install and manage Wine-GE** for Lutris  
+- 🎯 **Install and manage Luxtorpeda** for Steam
+- 🌟 **Install and manage Spritz-Wine** for Lutris
+- 🌅 **Install and manage dwproton** for Steam
+- 📦 **Automatic download and extraction** of compatibility tools
+- 🎨 **Beautiful libadwaita UI** that follows GNOME HIG
+- ⚡ **Fast and lightweight**, written in Rust
+- 🔔 **Toast notifications** for installation status
+- ⚙️ **Preferences dialog** for configuration
+- 🔄 **Refresh tool list** to fetch latest versions
+- 📋 **About dialog** with credits and license info
 
 ## Screenshots
 
@@ -72,13 +77,35 @@ The application will be available on Flathub.
 
 ## Usage
 
+### Installing a Compatibility Tool
+
 1. Launch ProtonUp-GTK
-2. Select the compatibility tool you want to install
-3. Click "Install" to download and install the latest version
-4. The tool will be automatically installed to the appropriate directory:
-   - GE-Proton: `~/.steam/root/compatibilitytools.d/`
-   - Wine-GE: `~/.local/share/lutris/runners/wine/`
-   - Luxtorpeda: `~/.steam/root/compatibilitytools.d/`
+2. Browse the list of available compatibility tools
+3. Click the **Install** button next to the tool you want
+4. The button will show "Installing..." while downloading
+5. A toast notification will confirm successful installation
+6. The tool is automatically installed to the appropriate directory:
+   - **Steam tools** (GE-Proton, Luxtorpeda, dwproton): `~/.steam/root/compatibilitytools.d/`
+   - **Lutris tools** (Wine-GE, Spritz-Wine): `~/.local/share/lutris/runners/wine/`
+
+### Refreshing Tool List
+
+- Click the **Refresh Tool List** button to fetch the latest versions
+- Toast notification shows how many tools were found
+
+### Accessing Preferences
+
+1. Click the menu button (⋮) in the top-right corner
+2. Select **Preferences**
+3. View installation paths and configure settings
+
+### Viewing About Information
+
+1. Click the menu button (⋮) in the top-right corner
+2. Select **About**
+3. View app version, credits, and license information
+
+See [UI_FEATURES.md](UI_FEATURES.md) for detailed UI documentation.
 
 ## Supported Compatibility Tools
 
