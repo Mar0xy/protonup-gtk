@@ -3,7 +3,6 @@ use libadwaita as adw;
 use adw::prelude::*;
 use gtk::{Button, Box, Orientation, Label, ScrolledWindow};
 use std::sync::{Arc, Mutex};
-use std::cell::RefCell;
 
 use crate::backend::{ToolManager, Downloader};
 
@@ -231,6 +230,7 @@ impl MainWindow {
                     // Enter the Tokio runtime context for async operations
                     let _guard = runtime_handle.enter();
                     
+                    let button_for_progress = button.clone();
                     let result = Self::install_tool_version(
                         &tool_name,
                         &version,
@@ -238,6 +238,13 @@ impl MainWindow {
                         &launcher,
                         tool_manager,
                         downloader,
+                        move |progress_msg| {
+                            let button = button_for_progress.clone();
+                            let msg = progress_msg.clone();
+                            glib::idle_add_once(move || {
+                                button.set_label(&msg);
+                            });
+                        },
                     ).await;
                     
                     button.set_sensitive(true);
@@ -246,7 +253,7 @@ impl MainWindow {
                     match result {
                         Ok(message) => {
                             let toast = adw::Toast::new(&message);
-                            toast.set_timeout(3);
+                            toast.set_timeout(5);  // Increased timeout so users can see it
                             toast_overlay.add_toast(toast);
                         }
                         Err(e) => {
@@ -267,14 +274,18 @@ impl MainWindow {
         expander  // Return the expander so it can be tracked for removal
     }
 
-    async fn install_tool_version(
+    async fn install_tool_version<F>(
         tool_name: &str,
         version: &str,
         download_url: &str,
         launcher: &crate::backend::Launcher,
         tool_manager: Arc<Mutex<ToolManager>>,
         downloader: Arc<Mutex<Downloader>>,
-    ) -> anyhow::Result<String> {
+        mut progress_callback: F,
+    ) -> anyhow::Result<String>
+    where
+        F: FnMut(String),
+    {
         // Get install path
         let install_path = tool_manager.lock()
             .expect("Failed to lock tool manager")
@@ -291,13 +302,18 @@ impl MainWindow {
         let temp_dir = std::env::temp_dir();
         let archive_path = temp_dir.join(url_path);
         
-        // Download the file
+        // Download the file with progress
+        progress_callback("Downloading (0%)".to_string());
         downloader.lock()
             .expect("Failed to lock downloader")
-            .download_file(download_url, &archive_path)
+            .download_file_with_progress(download_url, &archive_path, |progress| {
+                let msg = format!("Downloading ({:.0}%)", progress);
+                progress_callback(msg);
+            })
             .await?;
         
         // Extract to install path
+        progress_callback("Extracting...".to_string());
         downloader.lock()
             .expect("Failed to lock downloader")
             .extract_archive(&archive_path, &install_path)
@@ -385,7 +401,7 @@ impl MainWindow {
         app.add_action(&about_action);
     }
 
-    fn show_preferences_dialog(window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay) {
+    fn show_preferences_dialog(window: &adw::ApplicationWindow, _toast_overlay: &adw::ToastOverlay) {
         let dialog = adw::PreferencesWindow::builder()
             .transient_for(window)
             .modal(true)
