@@ -1,0 +1,47 @@
+{
+  "app-id": "com.github.Mar0xy.ProtonUpGtk",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "46",
+  "sdk": "org.gnome.Sdk",
+  "sdk-extensions": [
+    "org.freedesktop.Sdk.Extension.rust-stable"
+  ],
+  "command": "protonup-gtk",
+  "finish-args": [
+    "--share=ipc",
+    "--socket=fallback-x11",
+    "--socket=wayland",
+    "--device=dri",
+    "--share=network",
+    "--filesystem=~/.steam:rw",
+    "--filesystem=~/.local/share/lutris:rw"
+  ],
+  "build-options": {
+    "append-path": "/usr/lib/sdk/rust-stable/bin",
+    "env": {
+      "CARGO_HOME": "/run/build/protonup-gtk/cargo"
+    }
+  },
+  "modules": [
+    {
+      "name": "protonup-gtk",
+      "buildsystem": "simple",
+      "build-commands": [
+        "cargo --offline fetch --manifest-path Cargo.toml --verbose",
+        "cargo --offline build --release --verbose",
+        "install -Dm755 ./target/release/protonup-gtk -t /app/bin/",
+        "install -Dm644 data/com.github.Mar0xy.ProtonUpGtk.desktop.in /app/share/applications/com.github.Mar0xy.ProtonUpGtk.desktop",
+        "install -Dm644 data/com.github.Mar0xy.ProtonUpGtk.metainfo.xml.in /app/share/metainfo/com.github.Mar0xy.ProtonUpGtk.metainfo.xml",
+        "install -Dm644 data/com.github.Mar0xy.ProtonUpGtk.gschema.xml /app/share/glib-2.0/schemas/com.github.Mar0xy.ProtonUpGtk.gschema.xml",
+        "glib-compile-schemas /app/share/glib-2.0/schemas/"
+      ],
+      "sources": [
+        {
+          "type": "dir",
+          "path": "."
+        },
+        "cargo-sources.json"
+      ]
+    }
+  ]
+}
