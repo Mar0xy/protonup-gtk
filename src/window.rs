@@ -239,11 +239,8 @@ impl MainWindow {
                         tool_manager,
                         downloader,
                         move |progress_msg| {
-                            let button = button_for_progress.clone();
-                            let msg = progress_msg.clone();
-                            glib::idle_add_once(move || {
-                                button.set_label(&msg);
-                            });
+                            // We're already in the GLib main context, so we can update directly
+                            button_for_progress.set_label(&progress_msg);
                         },
                     ).await;
                     
