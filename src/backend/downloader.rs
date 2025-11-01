@@ -113,11 +113,41 @@ impl Downloader {
             tokio::fs::remove_dir_all(&target_path).await?;
         }
         
-        // Move the extracted directory to the target location with the correct name
-        tokio::fs::rename(&source_dir, &target_path).await?;
+        // Try to rename first (fast if same filesystem), fall back to copy if it fails
+        match tokio::fs::rename(&source_dir, &target_path).await {
+            Ok(_) => {},
+            Err(_) => {
+                // Rename failed (likely different filesystem), so copy instead
+                Self::copy_dir_recursive(&source_dir, &target_path).await?;
+                // Remove the source after successful copy
+                let _ = tokio::fs::remove_dir_all(&source_dir).await;
+            }
+        }
         
         // Clean up the temporary extraction directory
         let _ = tokio::fs::remove_dir_all(&temp_extract_dir).await;
+        
+        Ok(())
+    }
+
+    async fn copy_dir_recursive(src: &Path, dst: &Path) -> Result<()> {
+        tokio::fs::create_dir_all(dst).await?;
+        
+        let mut entries = tokio::fs::read_dir(src).await?;
+        
+        while let Some(entry) = entries.next_entry().await? {
+            let entry_path = entry.path();
+            let file_name = entry.file_name();
+            let dest_path = dst.join(&file_name);
+            
+            if entry.file_type().await?.is_dir() {
+                // Recursively copy subdirectories
+                Box::pin(Self::copy_dir_recursive(&entry_path, &dest_path)).await?;
+            } else {
+                // Copy file
+                tokio::fs::copy(&entry_path, &dest_path).await?;
+            }
+        }
         
         Ok(())
     }
