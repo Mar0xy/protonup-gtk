@@ -12,6 +12,8 @@ pub struct MainWindow {
     downloader: Arc<Mutex<Downloader>>,
     toast_overlay: adw::ToastOverlay,
     runtime_handle: Arc<tokio::runtime::Handle>,
+    list_group: adw::PreferencesGroup,
+    expander_rows: Arc<Mutex<Vec<adw::ExpanderRow>>>,
 }
 
 impl MainWindow {
@@ -159,13 +161,73 @@ impl MainWindow {
         // Setup menu
         Self::setup_menu(&menu_button, &window, &toast_overlay);
 
-        Self { 
+        let main_window = Self { 
             window,
             tool_manager,
             downloader,
             toast_overlay,
             runtime_handle,
-        }
+            list_group,
+            expander_rows,
+        };
+        
+        main_window
+    }
+
+    fn refresh_tools_list(&self) {
+        let toast_overlay = self.toast_overlay.clone();
+        let tool_manager = self.tool_manager.clone();
+        let list_group = self.list_group.clone();
+        let downloader = self.downloader.clone();
+        let runtime_handle = self.runtime_handle.clone();
+        let expander_rows = self.expander_rows.clone();
+        
+        glib::MainContext::default().spawn_local(async move {
+            // Enter the Tokio runtime context for the async operations
+            let _guard = runtime_handle.enter();
+            
+            let result = tool_manager.lock()
+                .expect("Failed to lock tool manager")
+                .fetch_tools_with_versions()
+                .await;
+            
+            match result {
+                Ok(tools) => {
+                    // Clear existing rows that we previously added
+                    {
+                        let mut rows = expander_rows.lock().expect("Failed to lock expander rows");
+                        for row in rows.drain(..) {
+                            list_group.remove(&row);
+                        }
+                    }
+                    
+                    // Add new rows with versions
+                    for tool in &tools {
+                        let expander = Self::add_tool_with_versions(
+                            &list_group,
+                            &tool,
+                            tool_manager.clone(),
+                            downloader.clone(),
+                            toast_overlay.clone(),
+                            runtime_handle.clone(),
+                        );
+                        // Store the expander so we can remove it next time
+                        expander_rows.lock().expect("Failed to lock expander rows").push(expander);
+                    }
+                    
+                    let msg = format!("Loaded {} compatibility tools", tools.len());
+                    let toast = adw::Toast::new(&msg);
+                    toast.set_timeout(3);
+                    toast_overlay.add_toast(toast);
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to refresh: {}", e);
+                    let toast = adw::Toast::new(&error_msg);
+                    toast.set_timeout(5);
+                    toast_overlay.add_toast(toast);
+                }
+            }
+        });
     }
 
     fn add_tool_with_versions(
@@ -569,5 +631,7 @@ impl MainWindow {
 
     pub fn present(&self) {
         self.window.present();
+        // Automatically fetch tools list on startup
+        self.refresh_tools_list();
     }
 }
