@@ -77,15 +77,21 @@ Accessed via Menu → Preferences
 Icon: preferences-system-symbolic
 
 #### Installation Paths Group
-Description: "Configure where compatibility tools are installed"
+Description: "Configure where compatibility tools are installed. Leave empty for defaults."
 
 - **Steam Tools Path**
-  - Subtitle: `~/.steam/root/compatibilitytools.d`
-  - (Currently display-only)
+  - Entry field showing current path (editable)
+  - Default: `~/.steam/root/compatibilitytools.d`
+  - Users can set custom path by typing and pressing Enter
+  - Clear the field and press Enter to reset to default
+  - Toast notification confirms changes
 
 - **Lutris Runners Path**
-  - Subtitle: `~/.local/share/lutris/runners/wine`
-  - (Currently display-only)
+  - Entry field showing current path (editable)
+  - Default: `~/.local/share/lutris/runners/wine`
+  - Users can set custom path by typing and pressing Enter
+  - Clear the field and press Enter to reset to default
+  - Toast notification confirms changes
 
 #### Updates Group
 Description: "Automatic update settings"
@@ -143,6 +149,15 @@ Shows:
 5. Toast: "GE-Proton GE-Proton9-14 installed successfully!"
 ```
 
+### Application Startup (NEW: Auto-Fetch)
+
+1. Application window opens
+2. **Automatically** fetches tool list in background
+3. Tool list populates with expandable rows (last 4 versions each)
+4. Toast notification: "Loaded X compatibility tools"
+5. Tools remain visible until manual refresh
+6. No need to click "Refresh" on first launch
+
 ### Refreshing Tool List (Enhanced)
 
 1. Click **Refresh Tool List** button
@@ -152,6 +167,17 @@ Shows:
 5. Toast shows: "Loaded X compatibility tools"
 6. Button re-enabled
 7. Click any tool to expand and see versions
+
+### Configuring Installation Paths (NEW)
+
+1. Click menu button (⋮) in header
+2. Select "Preferences"
+3. Modal preferences window appears
+4. **Edit Steam or Lutris paths** by typing in entry fields
+5. Press Enter to apply changes
+6. Toast notification confirms: "Steam path updated" or "Lutris path updated"
+7. Clear field and press Enter to reset to default path
+8. Close preferences window
 
 ### Opening Preferences
 

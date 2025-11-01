@@ -20,10 +20,12 @@ ProtonUp-GTK is a modern, native Linux application inspired by [ProtonUp-Qt](htt
 - ⚡ **Fast and lightweight**, written in Rust
 - 🔔 **Toast notifications** for installation status
 - ⚙️ **Preferences dialog** for configuration
+- 🔄 **Auto-fetch on startup** - Tools load automatically when app launches
 - 🔄 **Refresh tool list** to fetch latest versions
 - 📋 **About dialog** with credits and license info
-- 🎯 **NEW: Version selection** - Choose from last 4 releases of each tool
+- 🎯 **Version selection** - Choose from last 4 releases of each tool
 - 📂 **Expandable tool rows** - Click to see all available versions
+- 🛠️ **Configurable paths** - Set custom Steam and Lutris installation directories
 
 ## Screenshots
 
@@ -79,38 +81,59 @@ The application will be available on Flathub.
 
 ## Usage
 
-### Installing a Compatibility Tool (NEW: Version Selection!)
+### First Launch (NEW: Auto-Fetch!)
 
 1. Launch ProtonUp-GTK
-2. Click the **Refresh Tool List** button to load available versions
-3. **Click on a tool name** to expand and see all available versions (last 4 releases)
-4. Click the **Install** button next to the version you want
-5. The button will show "Installing..." while downloading
-6. A toast notification will confirm successful installation with version number
-7. The tool is automatically installed to the appropriate directory:
+2. **Tool list is automatically fetched** on startup
+3. Toast notification: "Loaded X compatibility tools"
+4. All tools are ready to browse and install immediately
+
+### Installing a Compatibility Tool (NEW: Version Selection!)
+
+1. Launch ProtonUp-GTK (tools auto-load on startup)
+2. **Click on a tool name** to expand and see all available versions (last 4 releases)
+3. Click the **Install** button next to the version you want
+4. The button will show "Installing..." while downloading
+5. A toast notification will confirm successful installation with version number
+6. The tool is automatically installed to the appropriate directory:
    - **Steam tools** (GE-Proton, Luxtorpeda, dwproton): `~/.steam/root/compatibilitytools.d/`
    - **Lutris tools** (Wine-GE, Spritz-Wine): `~/.local/share/lutris/runners/wine/`
 
 **Example:**
 ```
-1. Click "Refresh Tool List"
+1. Launch app (tools auto-load)
 2. Click "GE-Proton" to expand
-3. See versions: GE-Proton9-15, GE-Proton9-14, GE-Proton9-13, GE-Proton9-12
+3. See versions: GE-Proton10-24, GE-Proton10-23, GE-Proton10-22, GE-Proton10-21
 4. Click "Install" next to your preferred version
-5. Toast: "GE-Proton GE-Proton9-14 installed successfully!"
+5. Toast: "GE-Proton GE-Proton10-24 installed successfully!"
 ```
 
 ### Refreshing Tool List
 
-- Click the **Refresh Tool List** button to fetch the **last 4 versions** of each tool
+- Click the **Refresh Tool List** button to fetch the **latest 4 versions** of each tool
 - Toast notification shows how many tools were loaded
 - Each tool becomes an expandable row showing multiple versions
+- **Note**: Tool list is automatically loaded on startup, refresh only needed to get latest versions
+
+### Configuring Installation Paths (NEW!)
+
+1. Click the menu button (⋮) in the top-right corner
+2. Select **Preferences**
+3. Edit the **Steam Tools Path** or **Lutris Runners Path** fields
+4. Press Enter to apply changes
+5. Toast notification confirms the change
+6. Clear a field and press Enter to reset to default path
+
+Default paths:
+- Steam: `~/.steam/root/compatibilitytools.d/`
+- Lutris: `~/.local/share/lutris/runners/wine/`
 
 ### Accessing Preferences
 
 1. Click the menu button (⋮) in the top-right corner
 2. Select **Preferences**
-3. View installation paths and configure settings
+3. View and edit installation paths
+4. Configure other settings
 
 ### Viewing About Information
 
