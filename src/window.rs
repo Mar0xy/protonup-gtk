@@ -58,88 +58,11 @@ impl MainWindow {
         welcome_box.append(&subtitle_label);
         main_box.append(&welcome_box);
         
-        // Tool list section
+        // Tool list section - will be populated dynamically
         let list_group = adw::PreferencesGroup::builder()
             .title("Compatibility Tools")
-            .description("Available compatibility tools for installation")
+            .description("Select a version to install")
             .build();
-        
-        // Create list of tools with install functionality
-        let tools = vec![
-            ("GE-Proton", "Proton compatibility tool for Steam", "Steam"),
-            ("Wine-GE", "Wine compatibility tool for Lutris", "Lutris"),
-            ("Luxtorpeda", "Steam Play compatibility tool", "Steam"),
-            ("Spritz-Wine", "Wine builds optimized for gaming performance", "Lutris"),
-            ("dwproton", "Dawn Wine Proton - Proton fork with improvements", "Steam"),
-        ];
-        
-        for (name, description, launcher) in tools {
-            let row = adw::ActionRow::builder()
-                .title(name)
-                .subtitle(description)
-                .build();
-            
-            let badge = Label::new(Some(launcher));
-            badge.add_css_class("caption");
-            badge.add_css_class("dim-label");
-            row.add_suffix(&badge);
-            
-            let install_button = Button::builder()
-                .label("Install")
-                .valign(gtk::Align::Center)
-                .build();
-            install_button.add_css_class("suggested-action");
-            
-            // Clone needed variables for the closure
-            let tool_name = name.to_string();
-            let toast_overlay_clone = toast_overlay.clone();
-            let tool_manager_clone = tool_manager.clone();
-            let downloader_clone = downloader.clone();
-            let install_button_clone = install_button.clone();
-            
-            install_button.connect_clicked(move |_| {
-                let tool_name = tool_name.clone();
-                let toast_overlay = toast_overlay_clone.clone();
-                let tool_manager = tool_manager_clone.clone();
-                let downloader = downloader_clone.clone();
-                let button = install_button_clone.clone();
-                
-                // Disable button during installation
-                button.set_sensitive(false);
-                button.set_label("Installing...");
-                
-                // Spawn async task to handle installation
-                glib::MainContext::default().spawn_local(async move {
-                    let result = Self::install_tool(
-                        &tool_name,
-                        tool_manager,
-                        downloader,
-                    ).await;
-                    
-                    // Re-enable button
-                    button.set_sensitive(true);
-                    button.set_label("Install");
-                    
-                    // Show result notification
-                    match result {
-                        Ok(message) => {
-                            let toast = adw::Toast::new(&message);
-                            toast.set_timeout(3);
-                            toast_overlay.add_toast(toast);
-                        }
-                        Err(e) => {
-                            let error_msg = format!("Installation failed: {}", e);
-                            let toast = adw::Toast::new(&error_msg);
-                            toast.set_timeout(5);
-                            toast_overlay.add_toast(toast);
-                        }
-                    }
-                });
-            });
-            
-            row.add_suffix(&install_button);
-            list_group.add(&row);
-        }
         
         main_box.append(&list_group);
         
@@ -152,19 +75,40 @@ impl MainWindow {
         
         let toast_overlay_refresh = toast_overlay.clone();
         let tool_manager_refresh = tool_manager.clone();
+        let list_group_refresh = list_group.clone();
+        let downloader_refresh = downloader.clone();
+        
         refresh_button.connect_clicked(move |btn| {
             btn.set_sensitive(false);
             let toast_overlay = toast_overlay_refresh.clone();
             let tool_manager = tool_manager_refresh.clone();
+            let list_group = list_group_refresh.clone();
             let button = btn.clone();
+            let downloader = downloader_refresh.clone();
             
             glib::MainContext::default().spawn_local(async move {
-                let result = tool_manager.borrow_mut().fetch_available_tools().await;
+                let result = tool_manager.borrow_mut().fetch_tools_with_versions().await;
                 button.set_sensitive(true);
                 
                 match result {
                     Ok(tools) => {
-                        let msg = format!("Found {} compatibility tools", tools.len());
+                        // Clear existing rows
+                        while let Some(child) = list_group.first_child() {
+                            list_group.remove(&child);
+                        }
+                        
+                        // Add new rows with versions
+                        for tool in tools {
+                            Self::add_tool_with_versions(
+                                &list_group,
+                                tool,
+                                tool_manager.clone(),
+                                downloader.clone(),
+                                toast_overlay.clone(),
+                            );
+                        }
+                        
+                        let msg = format!("Loaded {} compatibility tools", tools.len());
                         let toast = adw::Toast::new(&msg);
                         toast.set_timeout(3);
                         toast_overlay.add_toast(toast);
@@ -201,6 +145,133 @@ impl MainWindow {
             downloader,
             toast_overlay,
         }
+    }
+
+    fn add_tool_with_versions(
+        list_group: &adw::PreferencesGroup,
+        tool: crate::backend::ToolWithVersions,
+        tool_manager: Rc<RefCell<ToolManager>>,
+        downloader: Rc<RefCell<Downloader>>,
+        toast_overlay: adw::ToastOverlay,
+    ) {
+        use crate::backend::Launcher;
+        
+        // Create expander row for the tool
+        let expander = adw::ExpanderRow::builder()
+            .title(&tool.name)
+            .subtitle(&tool.description)
+            .build();
+        
+        // Add launcher badge
+        let launcher_text = tool.launcher.to_string();
+        let badge = Label::new(Some(&launcher_text));
+        badge.add_css_class("caption");
+        badge.add_css_class("dim-label");
+        expander.add_suffix(&badge);
+        
+        // Add version rows
+        for version in tool.versions {
+            let version_row = adw::ActionRow::builder()
+                .title(&version.version)
+                .build();
+            
+            let install_button = Button::builder()
+                .label("Install")
+                .valign(gtk::Align::Center)
+                .build();
+            install_button.add_css_class("suggested-action");
+            
+            // Clone for closure
+            let download_url = version.download_url.clone();
+            let version_str = version.version.clone();
+            let tool_name = tool.name.clone();
+            let launcher = tool.launcher.clone();
+            let tool_manager_clone = tool_manager.clone();
+            let downloader_clone = downloader.clone();
+            let toast_overlay_clone = toast_overlay.clone();
+            let button_clone = install_button.clone();
+            
+            install_button.connect_clicked(move |_| {
+                let download_url = download_url.clone();
+                let version = version_str.clone();
+                let tool_name = tool_name.clone();
+                let launcher = launcher.clone();
+                let tool_manager = tool_manager_clone.clone();
+                let downloader = downloader_clone.clone();
+                let toast_overlay = toast_overlay_clone.clone();
+                let button = button_clone.clone();
+                
+                button.set_sensitive(false);
+                button.set_label("Installing...");
+                
+                glib::MainContext::default().spawn_local(async move {
+                    let result = Self::install_tool_version(
+                        &tool_name,
+                        &version,
+                        &download_url,
+                        &launcher,
+                        tool_manager,
+                        downloader,
+                    ).await;
+                    
+                    button.set_sensitive(true);
+                    button.set_label("Install");
+                    
+                    match result {
+                        Ok(message) => {
+                            let toast = adw::Toast::new(&message);
+                            toast.set_timeout(3);
+                            toast_overlay.add_toast(toast);
+                        }
+                        Err(e) => {
+                            let error_msg = format!("Installation failed: {}", e);
+                            let toast = adw::Toast::new(&error_msg);
+                            toast.set_timeout(5);
+                            toast_overlay.add_toast(toast);
+                        }
+                    }
+                });
+            });
+            
+            version_row.add_suffix(&install_button);
+            expander.add_row(&version_row);
+        }
+        
+        list_group.add(&expander);
+    }
+
+    async fn install_tool_version(
+        tool_name: &str,
+        version: &str,
+        download_url: &str,
+        launcher: &crate::backend::Launcher,
+        tool_manager: Rc<RefCell<ToolManager>>,
+        downloader: Rc<RefCell<Downloader>>,
+    ) -> anyhow::Result<String> {
+        // Get install path
+        let install_path = tool_manager.borrow().get_install_path(launcher)?;
+        
+        // Create install directory if it doesn't exist
+        tokio::fs::create_dir_all(&install_path).await?;
+        
+        // Determine archive filename from URL
+        let url_path = download_url.split('/').last()
+            .ok_or_else(|| anyhow::anyhow!("Invalid download URL"))?;
+        
+        // Download to temp directory
+        let temp_dir = std::env::temp_dir();
+        let archive_path = temp_dir.join(url_path);
+        
+        // Download the file
+        downloader.borrow().download_file(download_url, &archive_path).await?;
+        
+        // Extract to install path
+        downloader.borrow().extract_archive(&archive_path, &install_path).await?;
+        
+        // Clean up downloaded archive
+        let _ = tokio::fs::remove_file(&archive_path).await;
+        
+        Ok(format!("{} {} installed successfully!", tool_name, version))
     }
 
     async fn install_tool(
