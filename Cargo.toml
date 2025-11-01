@@ -9,6 +9,7 @@ license = "GPL-3.0-or-later"
 [dependencies]
 gtk = { version = "0.9", package = "gtk4", features = ["v4_12"], optional = true }
 libadwaita = { version = "0.7", features = ["v1_5"], optional = true }
+glib = { version = "0.20", optional = true }
 tokio = { version = "1.13.1", features = ["full"] }
 reqwest = { version = "0.12", features = ["json", "stream"] }
 serde = { version = "1.0", features = ["derive"] }
@@ -22,4 +23,4 @@ futures-util = "0.3"
 
 [features]
 default = ["gui"]
-gui = ["gtk", "libadwaita"]
+gui = ["gtk", "libadwaita", "glib"]
