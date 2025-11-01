@@ -119,10 +119,10 @@ The application will be available on Flathub.
 
 1. Click the menu button (⋮) in the top-right corner
 2. Select **Preferences**
-3. Edit the **Steam Tools Path** or **Lutris Runners Path** fields
-4. Press Enter to apply changes
+3. Click the **folder button (📁)** next to the path you want to change
+4. Use the directory picker to select your desired installation directory
 5. Toast notification confirms the change
-6. Clear a field and press Enter to reset to default path
+6. Click the **clear button (✕)** to reset a path to default
 
 Default paths:
 - Steam: `~/.steam/root/compatibilitytools.d/`

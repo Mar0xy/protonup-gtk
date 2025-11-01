@@ -80,17 +80,17 @@ Icon: preferences-system-symbolic
 Description: "Configure where compatibility tools are installed. Leave empty for defaults."
 
 - **Steam Tools Path**
-  - Entry field showing current path (editable)
+  - Shows current path in subtitle
   - Default: `~/.steam/root/compatibilitytools.d`
-  - Users can set custom path by typing and pressing Enter
-  - Clear the field and press Enter to reset to default
+  - Folder button (📁) opens directory picker to select custom path
+  - Clear button (✕) resets to default path
   - Toast notification confirms changes
 
 - **Lutris Runners Path**
-  - Entry field showing current path (editable)
+  - Shows current path in subtitle
   - Default: `~/.local/share/lutris/runners/wine`
-  - Users can set custom path by typing and pressing Enter
-  - Clear the field and press Enter to reset to default
+  - Folder button (📁) opens directory picker to select custom path
+  - Clear button (✕) resets to default path
   - Toast notification confirms changes
 
 #### Updates Group
@@ -173,11 +173,12 @@ Shows:
 1. Click menu button (⋮) in header
 2. Select "Preferences"
 3. Modal preferences window appears
-4. **Edit Steam or Lutris paths** by typing in entry fields
-5. Press Enter to apply changes
-6. Toast notification confirms: "Steam path updated" or "Lutris path updated"
-7. Clear field and press Enter to reset to default path
-8. Close preferences window
+4. Click the **folder button (📁)** next to Steam or Lutris path
+5. Directory picker opens
+6. Select desired installation directory
+7. Toast notification confirms: "Steam path updated" or "Lutris path updated"
+8. Click the **clear button (✕)** to reset path to default
+9. Close preferences window
 
 ### Opening Preferences
 

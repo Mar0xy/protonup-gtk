@@ -580,64 +580,142 @@ impl MainWindow {
                 .unwrap_or_else(|| "~/.local/share/lutris/runners/wine".to_string())
         };
         
-        // Steam path entry
-        let steam_row = adw::EntryRow::builder()
+        // Steam path row with directory picker
+        let steam_row = adw::ActionRow::builder()
             .title("Steam Tools Path")
-            .text(&current_steam_path)
+            .subtitle(&current_steam_path)
             .build();
+        
+        let steam_button = Button::builder()
+            .icon_name("folder-open-symbolic")
+            .valign(gtk::Align::Center)
+            .build();
+        steam_button.add_css_class("flat");
         
         let tool_manager_steam = tool_manager.clone();
         let toast_overlay_steam = toast_overlay.clone();
-        steam_row.connect_apply(move |entry| {
-            let text = entry.text();
-            let path_str = text.trim();
+        let steam_row_clone = steam_row.clone();
+        let window_clone = window.clone();
+        steam_button.connect_clicked(move |_| {
+            let file_dialog = gtk::FileDialog::builder()
+                .title("Select Steam Tools Directory")
+                .modal(true)
+                .build();
             
-            if path_str.is_empty() {
-                // Reset to default
-                tool_manager_steam.lock().expect("Failed to lock").set_steam_path(None);
-                let toast = adw::Toast::new("Steam path reset to default");
-                toast.set_timeout(3);
-                toast_overlay_steam.add_toast(toast);
-            } else {
-                // Set custom path
-                let path = std::path::PathBuf::from(path_str);
-                tool_manager_steam.lock().expect("Failed to lock").set_steam_path(Some(path));
-                let toast = adw::Toast::new("Steam path updated");
-                toast.set_timeout(3);
-                toast_overlay_steam.add_toast(toast);
-            }
+            let tool_manager = tool_manager_steam.clone();
+            let toast_overlay = toast_overlay_steam.clone();
+            let steam_row = steam_row_clone.clone();
+            
+            file_dialog.select_folder(Some(&window_clone), gtk::gio::Cancellable::NONE, move |result| {
+                if let Ok(folder) = result {
+                    if let Some(path) = folder.path() {
+                        tool_manager.lock().expect("Failed to lock").set_steam_path(Some(path.clone()));
+                        if let Some(path_str) = path.to_str() {
+                            steam_row.set_subtitle(path_str);
+                        }
+                        let toast = adw::Toast::new("Steam path updated");
+                        toast.set_timeout(3);
+                        toast_overlay.add_toast(toast);
+                    }
+                }
+            });
         });
         
+        steam_row.add_suffix(&steam_button);
+        
+        // Reset button for Steam path
+        let steam_reset_button = Button::builder()
+            .icon_name("edit-clear-symbolic")
+            .valign(gtk::Align::Center)
+            .tooltip_text("Reset to default")
+            .build();
+        steam_reset_button.add_css_class("flat");
+        
+        let tool_manager_steam_reset = tool_manager.clone();
+        let toast_overlay_steam_reset = toast_overlay.clone();
+        let steam_row_reset = steam_row.clone();
+        steam_reset_button.connect_clicked(move |_| {
+            tool_manager_steam_reset.lock().expect("Failed to lock").set_steam_path(None);
+            let default_path = dirs::home_dir()
+                .map(|h| h.join(".steam/root/compatibilitytools.d"))
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.steam/root/compatibilitytools.d".to_string());
+            steam_row_reset.set_subtitle(&default_path);
+            let toast = adw::Toast::new("Steam path reset to default");
+            toast.set_timeout(3);
+            toast_overlay_steam_reset.add_toast(toast);
+        });
+        
+        steam_row.add_suffix(&steam_reset_button);
         paths_group.add(&steam_row);
         
-        // Lutris path entry
-        let lutris_row = adw::EntryRow::builder()
+        // Lutris path row with directory picker
+        let lutris_row = adw::ActionRow::builder()
             .title("Lutris Runners Path")
-            .text(&current_lutris_path)
+            .subtitle(&current_lutris_path)
             .build();
+        
+        let lutris_button = Button::builder()
+            .icon_name("folder-open-symbolic")
+            .valign(gtk::Align::Center)
+            .build();
+        lutris_button.add_css_class("flat");
         
         let tool_manager_lutris = tool_manager.clone();
         let toast_overlay_lutris = toast_overlay.clone();
-        lutris_row.connect_apply(move |entry| {
-            let text = entry.text();
-            let path_str = text.trim();
+        let lutris_row_clone = lutris_row.clone();
+        let window_clone = window.clone();
+        lutris_button.connect_clicked(move |_| {
+            let file_dialog = gtk::FileDialog::builder()
+                .title("Select Lutris Runners Directory")
+                .modal(true)
+                .build();
             
-            if path_str.is_empty() {
-                // Reset to default
-                tool_manager_lutris.lock().expect("Failed to lock").set_lutris_path(None);
-                let toast = adw::Toast::new("Lutris path reset to default");
-                toast.set_timeout(3);
-                toast_overlay_lutris.add_toast(toast);
-            } else {
-                // Set custom path
-                let path = std::path::PathBuf::from(path_str);
-                tool_manager_lutris.lock().expect("Failed to lock").set_lutris_path(Some(path));
-                let toast = adw::Toast::new("Lutris path updated");
-                toast.set_timeout(3);
-                toast_overlay_lutris.add_toast(toast);
-            }
+            let tool_manager = tool_manager_lutris.clone();
+            let toast_overlay = toast_overlay_lutris.clone();
+            let lutris_row = lutris_row_clone.clone();
+            
+            file_dialog.select_folder(Some(&window_clone), gtk::gio::Cancellable::NONE, move |result| {
+                if let Ok(folder) = result {
+                    if let Some(path) = folder.path() {
+                        tool_manager.lock().expect("Failed to lock").set_lutris_path(Some(path.clone()));
+                        if let Some(path_str) = path.to_str() {
+                            lutris_row.set_subtitle(path_str);
+                        }
+                        let toast = adw::Toast::new("Lutris path updated");
+                        toast.set_timeout(3);
+                        toast_overlay.add_toast(toast);
+                    }
+                }
+            });
         });
         
+        lutris_row.add_suffix(&lutris_button);
+        
+        // Reset button for Lutris path
+        let lutris_reset_button = Button::builder()
+            .icon_name("edit-clear-symbolic")
+            .valign(gtk::Align::Center)
+            .tooltip_text("Reset to default")
+            .build();
+        lutris_reset_button.add_css_class("flat");
+        
+        let tool_manager_lutris_reset = tool_manager.clone();
+        let toast_overlay_lutris_reset = toast_overlay.clone();
+        let lutris_row_reset = lutris_row.clone();
+        lutris_reset_button.connect_clicked(move |_| {
+            tool_manager_lutris_reset.lock().expect("Failed to lock").set_lutris_path(None);
+            let default_path = dirs::home_dir()
+                .map(|h| h.join(".local/share/lutris/runners/wine"))
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.local/share/lutris/runners/wine".to_string());
+            lutris_row_reset.set_subtitle(&default_path);
+            let toast = adw::Toast::new("Lutris path reset to default");
+            toast.set_timeout(3);
+            toast_overlay_lutris_reset.add_toast(toast);
+        });
+        
+        lutris_row.add_suffix(&lutris_reset_button);
         paths_group.add(&lutris_row);
         
         page.add(&paths_group);
