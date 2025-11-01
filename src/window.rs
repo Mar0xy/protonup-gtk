@@ -2,16 +2,14 @@ use gtk::prelude::*;
 use libadwaita as adw;
 use adw::prelude::*;
 use gtk::{Button, Box, Orientation, Label, ScrolledWindow};
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use crate::backend::{ToolManager, Downloader};
 
 pub struct MainWindow {
     window: adw::ApplicationWindow,
-    tool_manager: Rc<RefCell<ToolManager>>,
-    downloader: Rc<RefCell<Downloader>>,
+    tool_manager: Arc<Mutex<ToolManager>>,
+    downloader: Arc<Mutex<Downloader>>,
     toast_overlay: adw::ToastOverlay,
     runtime_handle: Arc<tokio::runtime::Handle>,
 }
@@ -25,8 +23,8 @@ impl MainWindow {
             .default_height(600)
             .build();
 
-        let tool_manager = Rc::new(RefCell::new(ToolManager::new()));
-        let downloader = Rc::new(RefCell::new(Downloader::new()));
+        let tool_manager = Arc::new(Mutex::new(ToolManager::new()));
+        let downloader = Arc::new(Mutex::new(Downloader::new()));
 
         // Create toast overlay for notifications
         let toast_overlay = adw::ToastOverlay::new();
@@ -93,7 +91,7 @@ impl MainWindow {
             glib::MainContext::default().spawn_local(async move {
                 // Run the async HTTP operations in the Tokio runtime
                 let result = runtime_handle.spawn(async move {
-                    tool_manager.borrow_mut().fetch_tools_with_versions().await
+                    tool_manager.lock().unwrap().fetch_tools_with_versions().await
                 }).await;
                 
                 button.set_sensitive(true);
@@ -166,8 +164,8 @@ impl MainWindow {
     fn add_tool_with_versions(
         list_group: &adw::PreferencesGroup,
         tool: &crate::backend::ToolWithVersions,
-        tool_manager: Rc<RefCell<ToolManager>>,
-        downloader: Rc<RefCell<Downloader>>,
+        tool_manager: Arc<Mutex<ToolManager>>,
+        downloader: Arc<Mutex<Downloader>>,
         toast_overlay: adw::ToastOverlay,
         runtime_handle: Arc<tokio::runtime::Handle>,
     ) {
@@ -271,11 +269,11 @@ impl MainWindow {
         version: &str,
         download_url: &str,
         launcher: &crate::backend::Launcher,
-        tool_manager: Rc<RefCell<ToolManager>>,
-        downloader: Rc<RefCell<Downloader>>,
+        tool_manager: Arc<Mutex<ToolManager>>,
+        downloader: Arc<Mutex<Downloader>>,
     ) -> anyhow::Result<String> {
         // Get install path
-        let install_path = tool_manager.borrow().get_install_path(launcher)?;
+        let install_path = tool_manager.lock().unwrap().get_install_path(launcher)?;
         
         // Create install directory if it doesn't exist
         tokio::fs::create_dir_all(&install_path).await?;
@@ -289,10 +287,10 @@ impl MainWindow {
         let archive_path = temp_dir.join(url_path);
         
         // Download the file
-        downloader.borrow().download_file(download_url, &archive_path).await?;
+        downloader.lock().unwrap().download_file(download_url, &archive_path).await?;
         
         // Extract to install path
-        downloader.borrow().extract_archive(&archive_path, &install_path).await?;
+        downloader.lock().unwrap().extract_archive(&archive_path, &install_path).await?;
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
@@ -302,18 +300,18 @@ impl MainWindow {
 
     async fn install_tool(
         tool_name: &str,
-        tool_manager: Rc<RefCell<ToolManager>>,
-        downloader: Rc<RefCell<Downloader>>,
+        tool_manager: Arc<Mutex<ToolManager>>,
+        downloader: Arc<Mutex<Downloader>>,
     ) -> anyhow::Result<String> {
         // Fetch available tools to get download URL
-        let tools = tool_manager.borrow_mut().fetch_available_tools().await?;
+        let tools = tool_manager.lock().unwrap().fetch_available_tools().await?;
         
         let tool = tools.iter()
             .find(|t| t.name == tool_name)
             .ok_or_else(|| anyhow::anyhow!("Tool '{}' not found", tool_name))?;
         
         // Get install path
-        let install_path = tool_manager.borrow().get_install_path(&tool.launcher)?;
+        let install_path = tool_manager.lock().unwrap().get_install_path(&tool.launcher)?;
         
         // Create install directory if it doesn't exist
         tokio::fs::create_dir_all(&install_path).await?;
@@ -327,10 +325,10 @@ impl MainWindow {
         let archive_path = temp_dir.join(url_path);
         
         // Download the file
-        downloader.borrow().download_file(&tool.download_url, &archive_path).await?;
+        downloader.lock().unwrap().download_file(&tool.download_url, &archive_path).await?;
         
         // Extract to install path
-        downloader.borrow().extract_archive(&archive_path, &install_path).await?;
+        downloader.lock().unwrap().extract_archive(&archive_path, &install_path).await?;
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
