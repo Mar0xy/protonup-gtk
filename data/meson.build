@@ -1,15 +1,10 @@
 desktop_conf = configuration_data()
 desktop_conf.set('icon', application_id)
 
-desktop_file = i18n.merge_file(
-  input: configure_file(
-    input: 'com.github.Mar0xy.ProtonUpGtk.desktop.in',
-    output: '@BASENAME@',
-    configuration: desktop_conf
-  ),
+desktop_file = configure_file(
+  input: 'com.github.Mar0xy.ProtonUpGtk.desktop.in',
   output: '@0@.desktop'.format(application_id),
-  type: 'desktop',
-  po_dir: '../po',
+  configuration: desktop_conf,
   install: true,
   install_dir: datadir / 'applications'
 )
@@ -19,10 +14,10 @@ if desktop_utils.found()
   test('Validate desktop file', desktop_utils, args: [desktop_file])
 endif
 
-appstream_file = i18n.merge_file(
+appstream_file = configure_file(
   input: 'com.github.Mar0xy.ProtonUpGtk.metainfo.xml.in',
   output: '@0@.metainfo.xml'.format(application_id),
-  po_dir: '../po',
+  configuration: desktop_conf,
   install: true,
   install_dir: datadir / 'metainfo'
 )

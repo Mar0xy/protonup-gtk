@@ -52,7 +52,7 @@ impl ToolManager {
             client: Client::builder()
                 .user_agent("ProtonUp-GTK/0.1.0")
                 .build()
-                .unwrap(),
+                .expect("Failed to create HTTP client"),
         }
     }
 
@@ -84,8 +84,8 @@ impl ToolManager {
             tools.push(dwproton);
         }
 
-        self.tools = tools.clone();
-        Ok(tools)
+        self.tools = tools;
+        Ok(self.tools.clone())
     }
 
     async fn fetch_ge_proton_latest(&self) -> Result<CompatibilityTool> {
