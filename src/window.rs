@@ -89,18 +89,18 @@ impl MainWindow {
             let runtime_handle = runtime_handle_refresh.clone();
             
             glib::MainContext::default().spawn_local(async move {
-                // Run the async HTTP operations in the Tokio runtime
-                let result = runtime_handle.spawn(async move {
-                    tool_manager.lock()
-                        .expect("Failed to lock tool manager")
-                        .fetch_tools_with_versions()
-                        .await
-                }).await;
+                // Enter the Tokio runtime context for the async operations
+                let _guard = runtime_handle.enter();
+                
+                let result = tool_manager.lock()
+                    .expect("Failed to lock tool manager")
+                    .fetch_tools_with_versions()
+                    .await;
                 
                 button.set_sensitive(true);
                 
                 match result {
-                    Ok(Ok(tools)) => {
+                    Ok(tools) => {
                         // Clear existing rows
                         while let Some(child) = list_group.first_child() {
                             list_group.remove(&child);
@@ -123,14 +123,8 @@ impl MainWindow {
                         toast.set_timeout(3);
                         toast_overlay.add_toast(toast);
                     }
-                    Ok(Err(e)) => {
-                        let error_msg = format!("Failed to refresh: {}", e);
-                        let toast = adw::Toast::new(&error_msg);
-                        toast.set_timeout(5);
-                        toast_overlay.add_toast(toast);
-                    }
                     Err(e) => {
-                        let error_msg = format!("Failed to spawn task: {}", e);
+                        let error_msg = format!("Failed to refresh: {}", e);
                         let toast = adw::Toast::new(&error_msg);
                         toast.set_timeout(5);
                         toast_overlay.add_toast(toast);
@@ -223,35 +217,29 @@ impl MainWindow {
                 button.set_label("Installing...");
                 
                 glib::MainContext::default().spawn_local(async move {
-                    // Run the async file operations in the Tokio runtime
-                    let result = runtime_handle.spawn(async move {
-                        Self::install_tool_version(
-                            &tool_name,
-                            &version,
-                            &download_url,
-                            &launcher,
-                            tool_manager,
-                            downloader,
-                        ).await
-                    }).await;
+                    // Enter the Tokio runtime context for async operations
+                    let _guard = runtime_handle.enter();
+                    
+                    let result = Self::install_tool_version(
+                        &tool_name,
+                        &version,
+                        &download_url,
+                        &launcher,
+                        tool_manager,
+                        downloader,
+                    ).await;
                     
                     button.set_sensitive(true);
                     button.set_label("Install");
                     
                     match result {
-                        Ok(Ok(message)) => {
+                        Ok(message) => {
                             let toast = adw::Toast::new(&message);
                             toast.set_timeout(3);
                             toast_overlay.add_toast(toast);
                         }
-                        Ok(Err(e)) => {
-                            let error_msg = format!("Installation failed: {}", e);
-                            let toast = adw::Toast::new(&error_msg);
-                            toast.set_timeout(5);
-                            toast_overlay.add_toast(toast);
-                        }
                         Err(e) => {
-                            let error_msg = format!("Failed to spawn task: {}", e);
+                            let error_msg = format!("Installation failed: {}", e);
                             let toast = adw::Toast::new(&error_msg);
                             toast.set_timeout(5);
                             toast_overlay.add_toast(toast);
