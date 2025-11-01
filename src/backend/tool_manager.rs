@@ -58,6 +58,8 @@ pub struct ToolManager {
     tools: Vec<CompatibilityTool>,
     tools_with_versions: Vec<ToolWithVersions>,
     client: Client,
+    custom_steam_path: Option<std::path::PathBuf>,
+    custom_lutris_path: Option<std::path::PathBuf>,
 }
 
 impl ToolManager {
@@ -69,6 +71,8 @@ impl ToolManager {
                 .user_agent("ProtonUp-GTK/0.2.0")
                 .build()
                 .expect("Failed to create HTTP client"),
+            custom_steam_path: None,
+            custom_lutris_path: None,
         }
     }
 
@@ -414,6 +418,21 @@ impl ToolManager {
     }
 
     pub fn get_install_path(&self, launcher: &Launcher) -> Result<std::path::PathBuf> {
+        // Check if there's a custom path set
+        match launcher {
+            Launcher::Steam => {
+                if let Some(ref custom_path) = self.custom_steam_path {
+                    return Ok(custom_path.clone());
+                }
+            }
+            Launcher::Lutris => {
+                if let Some(ref custom_path) = self.custom_lutris_path {
+                    return Ok(custom_path.clone());
+                }
+            }
+        }
+        
+        // Use default paths
         let home_dir = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
         
@@ -427,6 +446,14 @@ impl ToolManager {
         };
         
         Ok(path)
+    }
+
+    pub fn set_steam_path(&mut self, path: Option<std::path::PathBuf>) {
+        self.custom_steam_path = path;
+    }
+
+    pub fn set_lutris_path(&mut self, path: Option<std::path::PathBuf>) {
+        self.custom_lutris_path = path;
     }
 
     pub fn is_tool_installed(&self, tool_name: &str, launcher: &Launcher) -> bool {

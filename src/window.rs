@@ -159,7 +159,7 @@ impl MainWindow {
         window.set_content(Some(&toast_overlay));
 
         // Setup menu
-        Self::setup_menu(&menu_button, &window, &toast_overlay);
+        Self::setup_menu(&menu_button, &window, &toast_overlay, tool_manager.clone());
 
         let main_window = Self { 
             window,
@@ -514,7 +514,7 @@ impl MainWindow {
         Ok(format!("{} {} installed successfully!", tool.name, tool.version))
     }
 
-    fn setup_menu(menu_button: &gtk::MenuButton, window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay) {
+    fn setup_menu(menu_button: &gtk::MenuButton, window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay, tool_manager: Arc<Mutex<ToolManager>>) {
         let menu = gtk::gio::Menu::new();
         
         menu.append(Some("Preferences"), Some("app.preferences"));
@@ -526,8 +526,9 @@ impl MainWindow {
         let preferences_action = gtk::gio::SimpleAction::new("preferences", None);
         let window_clone = window.clone();
         let toast_overlay_clone = toast_overlay.clone();
+        let tool_manager_clone = tool_manager.clone();
         preferences_action.connect_activate(move |_, _| {
-            Self::show_preferences_dialog(&window_clone, &toast_overlay_clone);
+            Self::show_preferences_dialog(&window_clone, &toast_overlay_clone, tool_manager_clone.clone());
         });
         
         let about_action = gtk::gio::SimpleAction::new("about", None);
@@ -541,7 +542,7 @@ impl MainWindow {
         app.add_action(&about_action);
     }
 
-    fn show_preferences_dialog(window: &adw::ApplicationWindow, _toast_overlay: &adw::ToastOverlay) {
+    fn show_preferences_dialog(window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay, tool_manager: Arc<Mutex<ToolManager>>) {
         let dialog = adw::PreferencesWindow::builder()
             .transient_for(window)
             .modal(true)
@@ -559,21 +560,84 @@ impl MainWindow {
         // Paths group
         let paths_group = adw::PreferencesGroup::builder()
             .title("Installation Paths")
-            .description("Configure where compatibility tools are installed")
+            .description("Configure where compatibility tools are installed. Leave empty for defaults.")
             .build();
         
-        // Steam path
-        let steam_row = adw::ActionRow::builder()
+        // Get current paths
+        let current_steam_path = {
+            let manager = tool_manager.lock().expect("Failed to lock tool manager");
+            manager.get_install_path(&crate::backend::Launcher::Steam)
+                .ok()
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.steam/root/compatibilitytools.d".to_string())
+        };
+        
+        let current_lutris_path = {
+            let manager = tool_manager.lock().expect("Failed to lock tool manager");
+            manager.get_install_path(&crate::backend::Launcher::Lutris)
+                .ok()
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.local/share/lutris/runners/wine".to_string())
+        };
+        
+        // Steam path entry
+        let steam_row = adw::EntryRow::builder()
             .title("Steam Tools Path")
-            .subtitle("~/.steam/root/compatibilitytools.d")
+            .text(&current_steam_path)
             .build();
+        
+        let tool_manager_steam = tool_manager.clone();
+        let toast_overlay_steam = toast_overlay.clone();
+        steam_row.connect_apply(move |entry| {
+            let text = entry.text();
+            let path_str = text.trim();
+            
+            if path_str.is_empty() {
+                // Reset to default
+                tool_manager_steam.lock().expect("Failed to lock").set_steam_path(None);
+                let toast = adw::Toast::new("Steam path reset to default");
+                toast.set_timeout(3);
+                toast_overlay_steam.add_toast(toast);
+            } else {
+                // Set custom path
+                let path = std::path::PathBuf::from(path_str);
+                tool_manager_steam.lock().expect("Failed to lock").set_steam_path(Some(path));
+                let toast = adw::Toast::new("Steam path updated");
+                toast.set_timeout(3);
+                toast_overlay_steam.add_toast(toast);
+            }
+        });
+        
         paths_group.add(&steam_row);
         
-        // Lutris path
-        let lutris_row = adw::ActionRow::builder()
+        // Lutris path entry
+        let lutris_row = adw::EntryRow::builder()
             .title("Lutris Runners Path")
-            .subtitle("~/.local/share/lutris/runners/wine")
+            .text(&current_lutris_path)
             .build();
+        
+        let tool_manager_lutris = tool_manager.clone();
+        let toast_overlay_lutris = toast_overlay.clone();
+        lutris_row.connect_apply(move |entry| {
+            let text = entry.text();
+            let path_str = text.trim();
+            
+            if path_str.is_empty() {
+                // Reset to default
+                tool_manager_lutris.lock().expect("Failed to lock").set_lutris_path(None);
+                let toast = adw::Toast::new("Lutris path reset to default");
+                toast.set_timeout(3);
+                toast_overlay_lutris.add_toast(toast);
+            } else {
+                // Set custom path
+                let path = std::path::PathBuf::from(path_str);
+                tool_manager_lutris.lock().expect("Failed to lock").set_lutris_path(Some(path));
+                let toast = adw::Toast::new("Lutris path updated");
+                toast.set_timeout(3);
+                toast_overlay_lutris.add_toast(toast);
+            }
+        });
+        
         paths_group.add(&lutris_row);
         
         page.add(&paths_group);
