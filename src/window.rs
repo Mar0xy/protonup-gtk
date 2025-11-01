@@ -98,7 +98,7 @@ impl MainWindow {
                         }
                         
                         // Add new rows with versions
-                        for tool in tools {
+                        for tool in &tools {
                             Self::add_tool_with_versions(
                                 &list_group,
                                 tool,
@@ -149,13 +149,11 @@ impl MainWindow {
 
     fn add_tool_with_versions(
         list_group: &adw::PreferencesGroup,
-        tool: crate::backend::ToolWithVersions,
+        tool: &crate::backend::ToolWithVersions,
         tool_manager: Rc<RefCell<ToolManager>>,
         downloader: Rc<RefCell<Downloader>>,
         toast_overlay: adw::ToastOverlay,
     ) {
-        use crate::backend::Launcher;
-        
         // Create expander row for the tool
         let expander = adw::ExpanderRow::builder()
             .title(&tool.name)
@@ -170,7 +168,7 @@ impl MainWindow {
         expander.add_suffix(&badge);
         
         // Add version rows
-        for version in tool.versions {
+        for version in &tool.versions {
             let version_row = adw::ActionRow::builder()
                 .title(&version.version)
                 .build();
@@ -346,7 +344,7 @@ impl MainWindow {
             .search_enabled(false)
             .build();
         
-        dialog.set_title("Preferences");
+        dialog.set_title(Some("Preferences"));
         
         // General settings page
         let page = adw::PreferencesPage::builder()

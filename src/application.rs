@@ -1,6 +1,5 @@
 use gtk::prelude::*;
 use libadwaita as adw;
-use adw::prelude::*;
 
 use crate::window::MainWindow;
 
@@ -25,6 +24,6 @@ impl Application {
     }
 
     pub fn run(&self) -> i32 {
-        self.app.run()
+        self.app.run().into()
     }
 }
