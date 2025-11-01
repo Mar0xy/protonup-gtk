@@ -244,6 +244,9 @@ impl MainWindow {
                     button.set_label("Deleting...");
                     
                     glib::MainContext::default().spawn_local(async move {
+                        // Enter the Tokio runtime context for async operations
+                        let _guard = runtime_handle.enter();
+                        
                         let result = Self::delete_tool_version(
                             &version,
                             &launcher,
