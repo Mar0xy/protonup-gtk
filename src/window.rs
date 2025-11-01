@@ -91,7 +91,10 @@ impl MainWindow {
             glib::MainContext::default().spawn_local(async move {
                 // Run the async HTTP operations in the Tokio runtime
                 let result = runtime_handle.spawn(async move {
-                    tool_manager.lock().unwrap().fetch_tools_with_versions().await
+                    tool_manager.lock()
+                        .expect("Failed to lock tool manager")
+                        .fetch_tools_with_versions()
+                        .await
                 }).await;
                 
                 button.set_sensitive(true);
@@ -273,7 +276,9 @@ impl MainWindow {
         downloader: Arc<Mutex<Downloader>>,
     ) -> anyhow::Result<String> {
         // Get install path
-        let install_path = tool_manager.lock().unwrap().get_install_path(launcher)?;
+        let install_path = tool_manager.lock()
+            .expect("Failed to lock tool manager")
+            .get_install_path(launcher)?;
         
         // Create install directory if it doesn't exist
         tokio::fs::create_dir_all(&install_path).await?;
@@ -287,10 +292,16 @@ impl MainWindow {
         let archive_path = temp_dir.join(url_path);
         
         // Download the file
-        downloader.lock().unwrap().download_file(download_url, &archive_path).await?;
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .download_file(download_url, &archive_path)
+            .await?;
         
         // Extract to install path
-        downloader.lock().unwrap().extract_archive(&archive_path, &install_path).await?;
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .extract_archive(&archive_path, &install_path)
+            .await?;
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
@@ -304,14 +315,19 @@ impl MainWindow {
         downloader: Arc<Mutex<Downloader>>,
     ) -> anyhow::Result<String> {
         // Fetch available tools to get download URL
-        let tools = tool_manager.lock().unwrap().fetch_available_tools().await?;
+        let tools = tool_manager.lock()
+            .expect("Failed to lock tool manager")
+            .fetch_available_tools()
+            .await?;
         
         let tool = tools.iter()
             .find(|t| t.name == tool_name)
             .ok_or_else(|| anyhow::anyhow!("Tool '{}' not found", tool_name))?;
         
         // Get install path
-        let install_path = tool_manager.lock().unwrap().get_install_path(&tool.launcher)?;
+        let install_path = tool_manager.lock()
+            .expect("Failed to lock tool manager")
+            .get_install_path(&tool.launcher)?;
         
         // Create install directory if it doesn't exist
         tokio::fs::create_dir_all(&install_path).await?;
@@ -325,10 +341,16 @@ impl MainWindow {
         let archive_path = temp_dir.join(url_path);
         
         // Download the file
-        downloader.lock().unwrap().download_file(&tool.download_url, &archive_path).await?;
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .download_file(&tool.download_url, &archive_path)
+            .await?;
         
         // Extract to install path
-        downloader.lock().unwrap().extract_archive(&archive_path, &install_path).await?;
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .extract_archive(&archive_path, &install_path)
+            .await?;
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
