@@ -2,20 +2,20 @@ use gtk::prelude::*;
 use libadwaita as adw;
 use adw::prelude::*;
 use gtk::{Button, Box, Orientation, Label, ScrolledWindow};
-use std::cell::RefCell;
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use crate::backend::{ToolManager, Downloader};
 
 pub struct MainWindow {
     window: adw::ApplicationWindow,
-    tool_manager: Rc<RefCell<ToolManager>>,
-    downloader: Rc<RefCell<Downloader>>,
+    tool_manager: Arc<Mutex<ToolManager>>,
+    downloader: Arc<Mutex<Downloader>>,
     toast_overlay: adw::ToastOverlay,
+    runtime_handle: Arc<tokio::runtime::Handle>,
 }
 
 impl MainWindow {
-    pub fn new(app: &adw::Application) -> Self {
+    pub fn new(app: &adw::Application, runtime_handle: Arc<tokio::runtime::Handle>) -> Self {
         let window = adw::ApplicationWindow::builder()
             .application(app)
             .title("ProtonUp-GTK")
@@ -23,8 +23,8 @@ impl MainWindow {
             .default_height(600)
             .build();
 
-        let tool_manager = Rc::new(RefCell::new(ToolManager::new()));
-        let downloader = Rc::new(RefCell::new(Downloader::new()));
+        let tool_manager = Arc::new(Mutex::new(ToolManager::new()));
+        let downloader = Arc::new(Mutex::new(Downloader::new()));
 
         // Create toast overlay for notifications
         let toast_overlay = adw::ToastOverlay::new();
@@ -77,6 +77,11 @@ impl MainWindow {
         let tool_manager_refresh = tool_manager.clone();
         let list_group_refresh = list_group.clone();
         let downloader_refresh = downloader.clone();
+        let runtime_handle_refresh = runtime_handle.clone();
+        
+        // Store references to added expander rows so we can remove them on refresh
+        let expander_rows: Arc<Mutex<Vec<adw::ExpanderRow>>> = Arc::new(Mutex::new(Vec::new()));
+        let expander_rows_refresh = expander_rows.clone();
         
         refresh_button.connect_clicked(move |btn| {
             btn.set_sensitive(false);
@@ -85,27 +90,42 @@ impl MainWindow {
             let list_group = list_group_refresh.clone();
             let button = btn.clone();
             let downloader = downloader_refresh.clone();
+            let runtime_handle = runtime_handle_refresh.clone();
+            let expander_rows = expander_rows_refresh.clone();
             
             glib::MainContext::default().spawn_local(async move {
-                let result = tool_manager.borrow_mut().fetch_tools_with_versions().await;
+                // Enter the Tokio runtime context for the async operations
+                let _guard = runtime_handle.enter();
+                
+                let result = tool_manager.lock()
+                    .expect("Failed to lock tool manager")
+                    .fetch_tools_with_versions()
+                    .await;
+                
                 button.set_sensitive(true);
                 
                 match result {
                     Ok(tools) => {
-                        // Clear existing rows
-                        while let Some(child) = list_group.first_child() {
-                            list_group.remove(&child);
+                        // Clear existing rows that we previously added
+                        {
+                            let mut rows = expander_rows.lock().expect("Failed to lock expander rows");
+                            for row in rows.drain(..) {
+                                list_group.remove(&row);
+                            }
                         }
                         
                         // Add new rows with versions
                         for tool in &tools {
-                            Self::add_tool_with_versions(
+                            let expander = Self::add_tool_with_versions(
                                 &list_group,
                                 tool,
                                 tool_manager.clone(),
                                 downloader.clone(),
                                 toast_overlay.clone(),
+                                runtime_handle.clone(),
                             );
+                            // Store the expander so we can remove it next time
+                            expander_rows.lock().expect("Failed to lock expander rows").push(expander);
                         }
                         
                         let msg = format!("Loaded {} compatibility tools", tools.len());
@@ -144,16 +164,18 @@ impl MainWindow {
             tool_manager,
             downloader,
             toast_overlay,
+            runtime_handle,
         }
     }
 
     fn add_tool_with_versions(
         list_group: &adw::PreferencesGroup,
         tool: &crate::backend::ToolWithVersions,
-        tool_manager: Rc<RefCell<ToolManager>>,
-        downloader: Rc<RefCell<Downloader>>,
+        tool_manager: Arc<Mutex<ToolManager>>,
+        downloader: Arc<Mutex<Downloader>>,
         toast_overlay: adw::ToastOverlay,
-    ) {
+        runtime_handle: Arc<tokio::runtime::Handle>,
+    ) -> adw::ExpanderRow {
         // Create expander row for the tool
         let expander = adw::ExpanderRow::builder()
             .title(&tool.name)
@@ -173,11 +195,21 @@ impl MainWindow {
                 .title(&version.version)
                 .build();
             
-            let install_button = Button::builder()
-                .label("Install")
+            // Check if this version is already installed
+            let is_installed = tool_manager.lock()
+                .expect("Failed to lock tool manager")
+                .is_tool_installed(&version.version, &tool.launcher);
+            
+            let action_button = Button::builder()
+                .label(if is_installed { "Delete" } else { "Install" })
                 .valign(gtk::Align::Center)
                 .build();
-            install_button.add_css_class("suggested-action");
+            
+            if is_installed {
+                action_button.add_css_class("destructive-action");
+            } else {
+                action_button.add_css_class("suggested-action");
+            }
             
             // Clone for closure
             let download_url = version.download_url.clone();
@@ -187,9 +219,10 @@ impl MainWindow {
             let tool_manager_clone = tool_manager.clone();
             let downloader_clone = downloader.clone();
             let toast_overlay_clone = toast_overlay.clone();
-            let button_clone = install_button.clone();
+            let button_clone = action_button.clone();
+            let runtime_handle_clone = runtime_handle.clone();
             
-            install_button.connect_clicked(move |_| {
+            action_button.connect_clicked(move |_| {
                 let download_url = download_url.clone();
                 let version = version_str.clone();
                 let tool_name = tool_name.clone();
@@ -198,56 +231,121 @@ impl MainWindow {
                 let downloader = downloader_clone.clone();
                 let toast_overlay = toast_overlay_clone.clone();
                 let button = button_clone.clone();
+                let runtime_handle = runtime_handle_clone.clone();
+                
+                // Check if we're deleting or installing
+                let button_label = button.label().unwrap_or_default();
+                let is_delete = button_label.as_str() == "Delete";
                 
                 button.set_sensitive(false);
-                button.set_label("Installing...");
                 
-                glib::MainContext::default().spawn_local(async move {
-                    let result = Self::install_tool_version(
-                        &tool_name,
-                        &version,
-                        &download_url,
-                        &launcher,
-                        tool_manager,
-                        downloader,
-                    ).await;
+                if is_delete {
+                    // Handle deletion
+                    button.set_label("Deleting...");
                     
-                    button.set_sensitive(true);
-                    button.set_label("Install");
+                    glib::MainContext::default().spawn_local(async move {
+                        // Enter the Tokio runtime context for async operations
+                        let _guard = runtime_handle.enter();
+                        
+                        let result = Self::delete_tool_version(
+                            &version,
+                            &launcher,
+                            tool_manager,
+                        ).await;
+                        
+                        match result {
+                            Ok(message) => {
+                                button.set_label("Install");
+                                button.remove_css_class("destructive-action");
+                                button.add_css_class("suggested-action");
+                                button.set_sensitive(true);
+                                
+                                let toast = adw::Toast::new(&message);
+                                toast.set_timeout(5);
+                                toast_overlay.add_toast(toast);
+                            }
+                            Err(e) => {
+                                button.set_label("Delete");
+                                button.set_sensitive(true);
+                                
+                                let error_msg = format!("Deletion failed: {}", e);
+                                let toast = adw::Toast::new(&error_msg);
+                                toast.set_timeout(5);
+                                toast_overlay.add_toast(toast);
+                            }
+                        }
+                    });
+                } else {
+                    // Handle installation
+                    button.set_label("Installing...");
                     
-                    match result {
-                        Ok(message) => {
-                            let toast = adw::Toast::new(&message);
-                            toast.set_timeout(3);
-                            toast_overlay.add_toast(toast);
+                    glib::MainContext::default().spawn_local(async move {
+                        // Enter the Tokio runtime context for async operations
+                        let _guard = runtime_handle.enter();
+                        
+                        let button_for_progress = button.clone();
+                        let result = Self::install_tool_version(
+                            &tool_name,
+                            &version,
+                            &download_url,
+                            &launcher,
+                            tool_manager,
+                            downloader,
+                            move |progress_msg| {
+                                // We're already in the GLib main context, so we can update directly
+                                button_for_progress.set_label(&progress_msg);
+                            },
+                        ).await;
+                        
+                        match result {
+                            Ok(message) => {
+                                button.set_label("Delete");
+                                button.remove_css_class("suggested-action");
+                                button.add_css_class("destructive-action");
+                                button.set_sensitive(true);
+                                
+                                let toast = adw::Toast::new(&message);
+                                toast.set_timeout(5);
+                                toast_overlay.add_toast(toast);
+                            }
+                            Err(e) => {
+                                button.set_label("Install");
+                                button.set_sensitive(true);
+                                
+                                let error_msg = format!("Installation failed: {}", e);
+                                let toast = adw::Toast::new(&error_msg);
+                                toast.set_timeout(5);
+                                toast_overlay.add_toast(toast);
+                            }
                         }
-                        Err(e) => {
-                            let error_msg = format!("Installation failed: {}", e);
-                            let toast = adw::Toast::new(&error_msg);
-                            toast.set_timeout(5);
-                            toast_overlay.add_toast(toast);
-                        }
-                    }
-                });
+                    });
+                }
             });
             
-            version_row.add_suffix(&install_button);
+            version_row.add_suffix(&action_button);
             expander.add_row(&version_row);
         }
         
         list_group.add(&expander);
+        expander  // Return the expander so it can be tracked for removal
     }
 
-    async fn install_tool_version(
+    async fn install_tool_version<F>(
         tool_name: &str,
         version: &str,
         download_url: &str,
         launcher: &crate::backend::Launcher,
-        tool_manager: Rc<RefCell<ToolManager>>,
-        downloader: Rc<RefCell<Downloader>>,
-    ) -> anyhow::Result<String> {
+        tool_manager: Arc<Mutex<ToolManager>>,
+        downloader: Arc<Mutex<Downloader>>,
+        mut progress_callback: F,
+    ) -> anyhow::Result<String>
+    where
+        F: FnMut(String),
+    {
         // Get install path
-        let install_path = tool_manager.borrow().get_install_path(launcher)?;
+        let install_path = tool_manager.lock()
+            .expect("Failed to lock tool manager")
+            .get_install_path(launcher)?;
         
         // Create install directory if it doesn't exist
         tokio::fs::create_dir_all(&install_path).await?;
@@ -260,11 +358,22 @@ impl MainWindow {
         let temp_dir = std::env::temp_dir();
         let archive_path = temp_dir.join(url_path);
         
-        // Download the file
-        downloader.borrow().download_file(download_url, &archive_path).await?;
+        // Download the file with progress
+        progress_callback("Downloading (0%)".to_string());
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .download_file_with_progress(download_url, &archive_path, |progress| {
+                let msg = format!("Downloading ({:.0}%)", progress);
+                progress_callback(msg);
+            })
+            .await?;
         
         // Extract to install path
-        downloader.borrow().extract_archive(&archive_path, &install_path).await?;
+        progress_callback("Extracting...".to_string());
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .extract_archive(&archive_path, &install_path)
+            .await?;
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
@@ -272,20 +381,47 @@ impl MainWindow {
         Ok(format!("{} {} installed successfully!", tool_name, version))
     }
 
+    async fn delete_tool_version(
+        version: &str,
+        launcher: &crate::backend::Launcher,
+        tool_manager: Arc<Mutex<ToolManager>>,
+    ) -> anyhow::Result<String> {
+        // Get install path
+        let install_path = tool_manager.lock()
+            .expect("Failed to lock tool manager")
+            .get_install_path(launcher)?;
+        
+        // Find the directory for this version
+        let version_path = install_path.join(version);
+        
+        if version_path.exists() {
+            // Delete the directory
+            tokio::fs::remove_dir_all(&version_path).await?;
+            Ok(format!("{} deleted successfully!", version))
+        } else {
+            Err(anyhow::anyhow!("Tool version {} not found", version))
+        }
+    }
+
     async fn install_tool(
         tool_name: &str,
-        tool_manager: Rc<RefCell<ToolManager>>,
-        downloader: Rc<RefCell<Downloader>>,
+        tool_manager: Arc<Mutex<ToolManager>>,
+        downloader: Arc<Mutex<Downloader>>,
     ) -> anyhow::Result<String> {
         // Fetch available tools to get download URL
-        let tools = tool_manager.borrow_mut().fetch_available_tools().await?;
+        let tools = tool_manager.lock()
+            .expect("Failed to lock tool manager")
+            .fetch_available_tools()
+            .await?;
         
         let tool = tools.iter()
             .find(|t| t.name == tool_name)
             .ok_or_else(|| anyhow::anyhow!("Tool '{}' not found", tool_name))?;
         
         // Get install path
-        let install_path = tool_manager.borrow().get_install_path(&tool.launcher)?;
+        let install_path = tool_manager.lock()
+            .expect("Failed to lock tool manager")
+            .get_install_path(&tool.launcher)?;
         
         // Create install directory if it doesn't exist
         tokio::fs::create_dir_all(&install_path).await?;
@@ -299,10 +435,16 @@ impl MainWindow {
         let archive_path = temp_dir.join(url_path);
         
         // Download the file
-        downloader.borrow().download_file(&tool.download_url, &archive_path).await?;
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .download_file(&tool.download_url, &archive_path)
+            .await?;
         
         // Extract to install path
-        downloader.borrow().extract_archive(&archive_path, &install_path).await?;
+        downloader.lock()
+            .expect("Failed to lock downloader")
+            .extract_archive(&archive_path, &install_path)
+            .await?;
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
@@ -337,7 +479,7 @@ impl MainWindow {
         app.add_action(&about_action);
     }
 
-    fn show_preferences_dialog(window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay) {
+    fn show_preferences_dialog(window: &adw::ApplicationWindow, _toast_overlay: &adw::ToastOverlay) {
         let dialog = adw::PreferencesWindow::builder()
             .transient_for(window)
             .modal(true)

@@ -428,6 +428,29 @@ impl ToolManager {
         
         Ok(path)
     }
+
+    pub fn is_tool_installed(&self, tool_name: &str, launcher: &Launcher) -> bool {
+        if let Ok(install_path) = self.get_install_path(launcher) {
+            // Check if a directory with the tool name exists
+            // GE-Proton versions are typically named like "GE-Proton9-7"
+            // We need to check if any directory contains the tool name
+            if let Ok(entries) = std::fs::read_dir(&install_path) {
+                for entry in entries.flatten() {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_dir() {
+                            if let Some(dir_name) = entry.file_name().to_str() {
+                                // Check if directory name contains the tool version
+                                if dir_name == tool_name || dir_name.contains(tool_name) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        false
+    }
 }
 
 impl Default for ToolManager {
