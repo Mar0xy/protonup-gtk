@@ -3,6 +3,7 @@ use libadwaita as adw;
 use adw::prelude::*;
 use gtk::{Button, Box, Orientation, Label, ScrolledWindow};
 use std::sync::{Arc, Mutex};
+use std::cell::RefCell;
 
 use crate::backend::{ToolManager, Downloader};
 
@@ -79,6 +80,10 @@ impl MainWindow {
         let downloader_refresh = downloader.clone();
         let runtime_handle_refresh = runtime_handle.clone();
         
+        // Store references to added expander rows so we can remove them on refresh
+        let expander_rows: Arc<Mutex<Vec<adw::ExpanderRow>>> = Arc::new(Mutex::new(Vec::new()));
+        let expander_rows_refresh = expander_rows.clone();
+        
         refresh_button.connect_clicked(move |btn| {
             btn.set_sensitive(false);
             let toast_overlay = toast_overlay_refresh.clone();
@@ -87,6 +92,7 @@ impl MainWindow {
             let button = btn.clone();
             let downloader = downloader_refresh.clone();
             let runtime_handle = runtime_handle_refresh.clone();
+            let expander_rows = expander_rows_refresh.clone();
             
             glib::MainContext::default().spawn_local(async move {
                 // Enter the Tokio runtime context for the async operations
@@ -101,14 +107,17 @@ impl MainWindow {
                 
                 match result {
                     Ok(tools) => {
-                        // Clear existing rows
-                        while let Some(child) = list_group.first_child() {
-                            list_group.remove(&child);
+                        // Clear existing rows that we previously added
+                        {
+                            let mut rows = expander_rows.lock().expect("Failed to lock expander rows");
+                            for row in rows.drain(..) {
+                                list_group.remove(&row);
+                            }
                         }
                         
                         // Add new rows with versions
                         for tool in &tools {
-                            Self::add_tool_with_versions(
+                            let expander = Self::add_tool_with_versions(
                                 &list_group,
                                 tool,
                                 tool_manager.clone(),
@@ -116,6 +125,8 @@ impl MainWindow {
                                 toast_overlay.clone(),
                                 runtime_handle.clone(),
                             );
+                            // Store the expander so we can remove it next time
+                            expander_rows.lock().expect("Failed to lock expander rows").push(expander);
                         }
                         
                         let msg = format!("Loaded {} compatibility tools", tools.len());
@@ -165,7 +176,7 @@ impl MainWindow {
         downloader: Arc<Mutex<Downloader>>,
         toast_overlay: adw::ToastOverlay,
         runtime_handle: Arc<tokio::runtime::Handle>,
-    ) {
+    ) -> adw::ExpanderRow {
         // Create expander row for the tool
         let expander = adw::ExpanderRow::builder()
             .title(&tool.name)
@@ -253,6 +264,7 @@ impl MainWindow {
         }
         
         list_group.add(&expander);
+        expander  // Return the expander so it can be tracked for removal
     }
 
     async fn install_tool_version(
