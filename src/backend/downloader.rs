@@ -140,13 +140,30 @@ impl Downloader {
             let file_name = entry.file_name();
             let dest_path = dst.join(&file_name);
             
-            if entry.file_type().await?.is_dir() {
+            let metadata = tokio::fs::symlink_metadata(&entry_path).await?;
+            
+            if metadata.is_symlink() {
+                // Handle symlinks by reading and recreating them
+                let link_target = tokio::fs::read_link(&entry_path).await?;
+                #[cfg(unix)]
+                tokio::fs::symlink(&link_target, &dest_path).await?;
+                #[cfg(windows)]
+                {
+                    // On Windows, we need to check if the symlink points to a directory or file
+                    if tokio::fs::metadata(&entry_path).await.map(|m| m.is_dir()).unwrap_or(false) {
+                        tokio::fs::symlink_dir(&link_target, &dest_path).await?;
+                    } else {
+                        tokio::fs::symlink_file(&link_target, &dest_path).await?;
+                    }
+                }
+            } else if metadata.is_dir() {
                 // Recursively copy subdirectories
                 Box::pin(Self::copy_dir_recursive(&entry_path, &dest_path)).await?;
-            } else {
-                // Copy file
+            } else if metadata.is_file() {
+                // Copy regular files
                 tokio::fs::copy(&entry_path, &dest_path).await?;
             }
+            // Skip other file types (devices, sockets, etc.)
         }
         
         Ok(())
