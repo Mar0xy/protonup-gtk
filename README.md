@@ -25,11 +25,7 @@ ProtonUp-GTK is a modern, native Linux application inspired by [ProtonUp-Qt](htt
 - 🎯 **Version selection** - Choose from last 4 releases of each tool
 - 📂 **Expandable tool rows** - Click to see all available versions
 - 🛠️ **Configurable paths** - Set custom Steam and Lutris installation directories
-
-## Screenshots
-
-*Coming soon*
-
+  
 ## Building from Source
 
 ### Prerequisites
@@ -73,10 +69,6 @@ cargo run --release
 ```bash
 cargo install --path .
 ```
-
-### Flatpak (Coming Soon)
-
-The application will be available on Flathub.
 
 ## Usage
 
