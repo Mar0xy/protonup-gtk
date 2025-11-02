@@ -59,7 +59,7 @@ impl ToolManager {
         Self { 
             tools_with_versions: Vec::new(),
             client: Client::builder()
-                .user_agent("ProtonUp-GTK/0.2.0")
+                .user_agent("ProtonUp-GTK/0.3.1")
                 .build()
                 .expect("Failed to create HTTP client"),
             db,

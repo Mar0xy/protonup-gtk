@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-4-dev \
+            libadwaita-1-dev \
+            build-essential \
+            pkg-config
+
+      - name: Setup Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Create tarball
+        run: |
+          mkdir -p protonup-gtk-linux
+          cp target/release/protonup-gtk protonup-gtk-linux/
+          cp README.md LICENSE protonup-gtk-linux/ || true
+          tar -czf protonup-gtk-linux-x86_64.tar.gz protonup-gtk-linux/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: protonup-gtk-linux-x86_64
+          path: protonup-gtk-linux-x86_64.tar.gz
+
+  create-release:
+    needs: [build-linux]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: protonup-gtk-linux-x86_64
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ProtonUp-GTK v${{ steps.version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            protonup-gtk-linux-x86_64.tar.gz
+          body: |
+            ## ProtonUp-GTK v${{ steps.version.outputs.VERSION }}
+            
+            Install and manage compatibility tools for Steam and Lutris.
+            
+            ### Features
+            - 🎮 Install and manage GE-Proton, Wine-GE, Spritz-Wine, and dwproton
+            - 🔄 Auto-fetch tool list on startup
+            - 📂 Configurable installation paths
+            - 🗄️ SQLite database for persistent settings
+            - 🎯 Choose launcher (Steam/Lutris) for each tool
+            - 🎨 Beautiful libadwaita UI
+            
+            ### Installation
+            1. Download `protonup-gtk-linux-x86_64.tar.gz`
+            2. Extract: `tar -xzf protonup-gtk-linux-x86_64.tar.gz`
+            3. Run: `./protonup-gtk-linux/protonup-gtk`
+            
+            ### Requirements
+            - GTK 4
+            - libadwaita
+            
+            See [README.md](https://github.com/Mar0xy/protonup-gtk/blob/main/README.md) for more details.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
