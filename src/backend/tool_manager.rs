@@ -2,15 +2,6 @@ use serde::{Deserialize, Serialize};
 use anyhow::Result;
 use reqwest::Client;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct CompatibilityTool {
-    pub name: String,
-    pub description: String,
-    pub launcher: Launcher,
-    pub download_url: String,
-    pub version: String,
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub enum Launcher {
     Steam,
@@ -30,7 +21,6 @@ impl std::fmt::Display for Launcher {
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
     tag_name: String,
-    name: String,
     assets: Vec<GitHubAsset>,
 }
 
@@ -44,7 +34,7 @@ struct GitHubAsset {
 pub struct ToolWithVersions {
     pub name: String,
     pub description: String,
-    pub launcher: Launcher,
+    pub default_launcher: Launcher,  // Changed from 'launcher' to 'default_launcher' for clarity
     pub versions: Vec<ToolVersion>,
 }
 
@@ -54,54 +44,26 @@ pub struct ToolVersion {
     pub download_url: String,
 }
 
+use super::database::Database;
+
 pub struct ToolManager {
-    tools: Vec<CompatibilityTool>,
     tools_with_versions: Vec<ToolWithVersions>,
     client: Client,
+    db: Database,
 }
 
 impl ToolManager {
     pub fn new() -> Self {
+        let db = Database::new().expect("Failed to initialize database");
+        
         Self { 
-            tools: Vec::new(),
             tools_with_versions: Vec::new(),
             client: Client::builder()
-                .user_agent("ProtonUp-GTK/0.2.0")
+                .user_agent("ProtonUp-GTK/0.3.1")
                 .build()
                 .expect("Failed to create HTTP client"),
+            db,
         }
-    }
-
-    pub async fn fetch_available_tools(&mut self) -> Result<Vec<CompatibilityTool>> {
-        let mut tools = Vec::new();
-
-        // Fetch GE-Proton releases
-        if let Ok(ge_proton) = self.fetch_ge_proton_latest().await {
-            tools.push(ge_proton);
-        }
-
-        // Fetch Wine-GE releases
-        if let Ok(wine_ge) = self.fetch_wine_ge_latest().await {
-            tools.push(wine_ge);
-        }
-
-        // Fetch Luxtorpeda releases
-        if let Ok(luxtorpeda) = self.fetch_luxtorpeda_latest().await {
-            tools.push(luxtorpeda);
-        }
-
-        // Fetch Spritz-Wine releases
-        if let Ok(spritz_wine) = self.fetch_spritz_wine_latest().await {
-            tools.push(spritz_wine);
-        }
-
-        // Fetch dwproton releases
-        if let Ok(dwproton) = self.fetch_dwproton_latest().await {
-            tools.push(dwproton);
-        }
-
-        self.tools = tools;
-        Ok(self.tools.clone())
     }
 
     pub async fn fetch_tools_with_versions(&mut self) -> Result<Vec<ToolWithVersions>> {
@@ -115,11 +77,6 @@ impl ToolManager {
         // Fetch Wine-GE releases (last 4)
         if let Ok(wine_ge_versions) = self.fetch_wine_ge_versions(4).await {
             tools.push(wine_ge_versions);
-        }
-
-        // Fetch Luxtorpeda releases (last 4)
-        if let Ok(luxtorpeda_versions) = self.fetch_luxtorpeda_versions(4).await {
-            tools.push(luxtorpeda_versions);
         }
 
         // Fetch Spritz-Wine releases (last 4)
@@ -161,7 +118,7 @@ impl ToolManager {
         Ok(ToolWithVersions {
             name: "GE-Proton".to_string(),
             description: "Proton compatibility tool with additional fixes".to_string(),
-            launcher: Launcher::Steam,
+            default_launcher: Launcher::Steam,
             versions,
         })
     }
@@ -191,14 +148,46 @@ impl ToolManager {
         Ok(ToolWithVersions {
             name: "Wine-GE".to_string(),
             description: "Wine with additional game fixes".to_string(),
-            launcher: Launcher::Lutris,
+            default_launcher: Launcher::Lutris,
             versions,
         })
     }
 
-    async fn fetch_luxtorpeda_versions(&self, count: usize) -> Result<ToolWithVersions> {
+    async fn fetch_spritz_wine_versions(&self, count: usize) -> Result<ToolWithVersions> {
         let url = format!(
-            "https://api.github.com/repos/luxtorpeda-dev/luxtorpeda/releases?per_page={}",
+            "https://api.github.com/repos/NelloKudo/Wine-Builds/releases?per_page={}",
+            count
+        );
+        let releases: Vec<GitHubRelease> = self.client
+            .get(&url)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        let mut versions = Vec::new();
+        for release in releases {
+            if let Some(asset) = release.assets.iter()
+                .find(|a| a.name.to_lowercase().contains("spritz") && a.name.ends_with(".tar.xz"))
+            {
+                versions.push(ToolVersion {
+                    version: release.tag_name.clone(),
+                    download_url: asset.browser_download_url.clone(),
+                });
+            }
+        }
+
+        Ok(ToolWithVersions {
+            name: "Spritz-Wine".to_string(),
+            description: "Wine builds optimized for gaming performance".to_string(),
+            default_launcher: Launcher::Lutris,
+            versions,
+        })
+    }
+
+    async fn fetch_dwproton_versions(&self, count: usize) -> Result<ToolWithVersions> {
+        let url = format!(
+            "https://dawn.wine/api/v1/repos/dawn-winery/dwproton/releases?per_page={}",
             count
         );
         let releases: Vec<GitHubRelease> = self.client
@@ -219,201 +208,29 @@ impl ToolManager {
         }
 
         Ok(ToolWithVersions {
-            name: "Luxtorpeda".to_string(),
-            description: "Steam Play compatibility tool for native Linux games".to_string(),
-            launcher: Launcher::Steam,
-            versions,
-        })
-    }
-
-    async fn fetch_spritz_wine_versions(&self, count: usize) -> Result<ToolWithVersions> {
-        let url = format!(
-            "https://api.github.com/repos/NelloKudo/Wine-Builds/releases?per_page={}",
-            count
-        );
-        let releases: Vec<GitHubRelease> = self.client
-            .get(&url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        let mut versions = Vec::new();
-        for release in releases {
-            if let Some(asset) = release.assets.iter()
-                .find(|a| a.name.contains("Spritz-Wine") && a.name.ends_with(".tar.xz"))
-            {
-                versions.push(ToolVersion {
-                    version: release.tag_name.clone(),
-                    download_url: asset.browser_download_url.clone(),
-                });
-            }
-        }
-
-        Ok(ToolWithVersions {
-            name: "Spritz-Wine".to_string(),
-            description: "Wine builds optimized for gaming performance".to_string(),
-            launcher: Launcher::Lutris,
-            versions,
-        })
-    }
-
-    async fn fetch_dwproton_versions(&self, count: usize) -> Result<ToolWithVersions> {
-        let url = format!(
-            "https://dawn.wine/api/v1/repos/dawn-winery/dwproton/releases?per_page={}",
-            count
-        );
-        let releases: Vec<GitHubRelease> = self.client
-            .get(&url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        let mut versions = Vec::new();
-        for release in releases {
-            if let Some(asset) = release.assets.iter().find(|a| a.name.ends_with(".tar.gz")) {
-                versions.push(ToolVersion {
-                    version: release.tag_name.clone(),
-                    download_url: asset.browser_download_url.clone(),
-                });
-            }
-        }
-
-        Ok(ToolWithVersions {
             name: "dwproton".to_string(),
             description: "Dawn Wine Proton - Proton fork with improvements".to_string(),
-            launcher: Launcher::Steam,
+            default_launcher: Launcher::Steam,
             versions,
         })
-    }
-
-    async fn fetch_ge_proton_latest(&self) -> Result<CompatibilityTool> {
-        let url = "https://api.github.com/repos/GloriousEggroll/proton-ge-custom/releases/latest";
-        let release: GitHubRelease = self.client
-            .get(url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        // Find the tar.gz asset
-        let asset = release.assets
-            .iter()
-            .find(|a| a.name.ends_with(".tar.gz"))
-            .ok_or_else(|| anyhow::anyhow!("No .tar.gz asset found for GE-Proton"))?;
-
-        Ok(CompatibilityTool {
-            name: "GE-Proton".to_string(),
-            description: "Proton compatibility tool with additional fixes".to_string(),
-            launcher: Launcher::Steam,
-            download_url: asset.browser_download_url.clone(),
-            version: release.tag_name.clone(),
-        })
-    }
-
-    async fn fetch_wine_ge_latest(&self) -> Result<CompatibilityTool> {
-        let url = "https://api.github.com/repos/GloriousEggroll/wine-ge-custom/releases/latest";
-        let release: GitHubRelease = self.client
-            .get(url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        // Find the tar.xz asset
-        let asset = release.assets
-            .iter()
-            .find(|a| a.name.ends_with(".tar.xz"))
-            .ok_or_else(|| anyhow::anyhow!("No .tar.xz asset found for Wine-GE"))?;
-
-        Ok(CompatibilityTool {
-            name: "Wine-GE".to_string(),
-            description: "Wine with additional game fixes".to_string(),
-            launcher: Launcher::Lutris,
-            download_url: asset.browser_download_url.clone(),
-            version: release.tag_name.clone(),
-        })
-    }
-
-    async fn fetch_luxtorpeda_latest(&self) -> Result<CompatibilityTool> {
-        let url = "https://api.github.com/repos/luxtorpeda-dev/luxtorpeda/releases/latest";
-        let release: GitHubRelease = self.client
-            .get(url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        // Find the tar.xz asset
-        let asset = release.assets
-            .iter()
-            .find(|a| a.name.ends_with(".tar.xz"))
-            .ok_or_else(|| anyhow::anyhow!("No .tar.xz asset found for Luxtorpeda"))?;
-
-        Ok(CompatibilityTool {
-            name: "Luxtorpeda".to_string(),
-            description: "Steam Play compatibility tool for native Linux games".to_string(),
-            launcher: Launcher::Steam,
-            download_url: asset.browser_download_url.clone(),
-            version: release.tag_name.clone(),
-        })
-    }
-
-    async fn fetch_spritz_wine_latest(&self) -> Result<CompatibilityTool> {
-        let url = "https://api.github.com/repos/NelloKudo/Wine-Builds/releases/latest";
-        let release: GitHubRelease = self.client
-            .get(url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        // Find a Spritz-Wine tar.xz asset (they have various builds)
-        let asset = release.assets
-            .iter()
-            .find(|a| a.name.contains("Spritz-Wine") && a.name.ends_with(".tar.xz"))
-            .ok_or_else(|| anyhow::anyhow!("No Spritz-Wine .tar.xz asset found"))?;
-
-        Ok(CompatibilityTool {
-            name: "Spritz-Wine".to_string(),
-            description: "Wine builds optimized for gaming performance".to_string(),
-            launcher: Launcher::Lutris,
-            download_url: asset.browser_download_url.clone(),
-            version: release.tag_name.clone(),
-        })
-    }
-
-    async fn fetch_dwproton_latest(&self) -> Result<CompatibilityTool> {
-        // Forgejo/Gitea API is similar to GitHub API
-        let url = "https://dawn.wine/api/v1/repos/dawn-winery/dwproton/releases/latest";
-        let release: GitHubRelease = self.client
-            .get(url)
-            .send()
-            .await?
-            .json()
-            .await?;
-
-        // Find the tar.gz asset
-        let asset = release.assets
-            .iter()
-            .find(|a| a.name.ends_with(".tar.gz"))
-            .ok_or_else(|| anyhow::anyhow!("No .tar.gz asset found for dwproton"))?;
-
-        Ok(CompatibilityTool {
-            name: "dwproton".to_string(),
-            description: "Dawn Wine Proton - Proton fork with improvements".to_string(),
-            launcher: Launcher::Steam,
-            download_url: asset.browser_download_url.clone(),
-            version: release.tag_name.clone(),
-        })
-    }
-
-    pub fn get_tools(&self) -> &[CompatibilityTool] {
-        &self.tools
     }
 
     pub fn get_install_path(&self, launcher: &Launcher) -> Result<std::path::PathBuf> {
+        // Check if there's a custom path set in the database
+        match launcher {
+            Launcher::Steam => {
+                if let Ok(Some(custom_path)) = self.db.get_steam_path() {
+                    return Ok(custom_path);
+                }
+            }
+            Launcher::Lutris => {
+                if let Ok(Some(custom_path)) = self.db.get_lutris_path() {
+                    return Ok(custom_path);
+                }
+            }
+        }
+        
+        // Use default paths
         let home_dir = dirs::home_dir()
             .ok_or_else(|| anyhow::anyhow!("Could not determine home directory"))?;
         
@@ -429,7 +246,21 @@ impl ToolManager {
         Ok(path)
     }
 
+    pub fn set_steam_path(&mut self, path: Option<std::path::PathBuf>) {
+        let _ = self.db.set_steam_path(path.as_ref());
+    }
+
+    pub fn set_lutris_path(&mut self, path: Option<std::path::PathBuf>) {
+        let _ = self.db.set_lutris_path(path.as_ref());
+    }
+
     pub fn is_tool_installed(&self, tool_name: &str, launcher: &Launcher) -> bool {
+        // First check the database
+        if let Ok(true) = self.db.is_runner_installed(tool_name, launcher) {
+            return true;
+        }
+        
+        // Fall back to filesystem check
         if let Ok(install_path) = self.get_install_path(launcher) {
             // Check if a directory with the tool name exists
             // GE-Proton versions are typically named like "GE-Proton9-7"
@@ -466,7 +297,7 @@ mod tests {
     #[tokio::test]
     async fn test_fetch_tools() {
         let mut manager = ToolManager::new();
-        let result = manager.fetch_available_tools().await;
+        let result = manager.fetch_tools_with_versions().await;
         
         // We expect this to succeed or gracefully handle errors
         match result {
@@ -475,7 +306,7 @@ mod tests {
                 if !tools.is_empty() {
                     println!("Fetched {} tools", tools.len());
                     for tool in tools {
-                        println!("- {} ({}): {}", tool.name, tool.version, tool.download_url);
+                        println!("- {}: {} versions", tool.name, tool.versions.len());
                     }
                 }
             }

@@ -12,6 +12,8 @@ pub struct MainWindow {
     downloader: Arc<Mutex<Downloader>>,
     toast_overlay: adw::ToastOverlay,
     runtime_handle: Arc<tokio::runtime::Handle>,
+    list_group: adw::PreferencesGroup,
+    expander_rows: Arc<Mutex<Vec<adw::ExpanderRow>>>,
 }
 
 impl MainWindow {
@@ -157,15 +159,75 @@ impl MainWindow {
         window.set_content(Some(&toast_overlay));
 
         // Setup menu
-        Self::setup_menu(&menu_button, &window, &toast_overlay);
+        Self::setup_menu(&menu_button, &window, &toast_overlay, tool_manager.clone());
 
-        Self { 
+        let main_window = Self { 
             window,
             tool_manager,
             downloader,
             toast_overlay,
             runtime_handle,
-        }
+            list_group,
+            expander_rows,
+        };
+        
+        main_window
+    }
+
+    fn refresh_tools_list(&self) {
+        let toast_overlay = self.toast_overlay.clone();
+        let tool_manager = self.tool_manager.clone();
+        let list_group = self.list_group.clone();
+        let downloader = self.downloader.clone();
+        let runtime_handle = self.runtime_handle.clone();
+        let expander_rows = self.expander_rows.clone();
+        
+        glib::MainContext::default().spawn_local(async move {
+            // Enter the Tokio runtime context for the async operations
+            let _guard = runtime_handle.enter();
+            
+            let result = tool_manager.lock()
+                .expect("Failed to lock tool manager")
+                .fetch_tools_with_versions()
+                .await;
+            
+            match result {
+                Ok(tools) => {
+                    // Clear existing rows that we previously added
+                    {
+                        let mut rows = expander_rows.lock().expect("Failed to lock expander rows");
+                        for row in rows.drain(..) {
+                            list_group.remove(&row);
+                        }
+                    }
+                    
+                    // Add new rows with versions
+                    for tool in &tools {
+                        let expander = Self::add_tool_with_versions(
+                            &list_group,
+                            &tool,
+                            tool_manager.clone(),
+                            downloader.clone(),
+                            toast_overlay.clone(),
+                            runtime_handle.clone(),
+                        );
+                        // Store the expander so we can remove it next time
+                        expander_rows.lock().expect("Failed to lock expander rows").push(expander);
+                    }
+                    
+                    let msg = format!("Loaded {} compatibility tools", tools.len());
+                    let toast = adw::Toast::new(&msg);
+                    toast.set_timeout(3);
+                    toast_overlay.add_toast(toast);
+                }
+                Err(e) => {
+                    let error_msg = format!("Failed to refresh: {}", e);
+                    let toast = adw::Toast::new(&error_msg);
+                    toast.set_timeout(5);
+                    toast_overlay.add_toast(toast);
+                }
+            }
+        });
     }
 
     fn add_tool_with_versions(
@@ -182,12 +244,7 @@ impl MainWindow {
             .subtitle(&tool.description)
             .build();
         
-        // Add launcher badge
-        let launcher_text = tool.launcher.to_string();
-        let badge = Label::new(Some(&launcher_text));
-        badge.add_css_class("caption");
-        badge.add_css_class("dim-label");
-        expander.add_suffix(&badge);
+        // Remove the fixed launcher badge - users will now choose per installation
         
         // Add version rows
         for version in &tool.versions {
@@ -195,10 +252,25 @@ impl MainWindow {
                 .title(&version.version)
                 .build();
             
-            // Check if this version is already installed
-            let is_installed = tool_manager.lock()
+            // Create launcher selector dropdown
+            let launcher_model = gtk::StringList::new(&["Steam", "Lutris"]);
+            let launcher_dropdown = gtk::DropDown::builder()
+                .model(&launcher_model)
+                .selected(if tool.default_launcher == crate::backend::Launcher::Steam { 0 } else { 1 })
+                .valign(gtk::Align::Center)
+                .build();
+            
+            // Check installation status for both launchers
+            let is_installed_steam = tool_manager.lock()
                 .expect("Failed to lock tool manager")
-                .is_tool_installed(&version.version, &tool.launcher);
+                .is_tool_installed(&version.version, &crate::backend::Launcher::Steam);
+            let is_installed_lutris = tool_manager.lock()
+                .expect("Failed to lock tool manager")
+                .is_tool_installed(&version.version, &crate::backend::Launcher::Lutris);
+            
+            // Determine initial button state based on selected launcher
+            let initial_selected = launcher_dropdown.selected();
+            let is_installed = if initial_selected == 0 { is_installed_steam } else { is_installed_lutris };
             
             let action_button = Button::builder()
                 .label(if is_installed { "Delete" } else { "Install" })
@@ -211,11 +283,39 @@ impl MainWindow {
                 action_button.add_css_class("suggested-action");
             }
             
+            // Update button when launcher selection changes
+            let action_button_for_dropdown = action_button.clone();
+            let version_for_dropdown = version.version.clone();
+            let tool_manager_for_dropdown = tool_manager.clone();
+            launcher_dropdown.connect_selected_notify(move |dropdown| {
+                let selected = dropdown.selected();
+                let launcher = if selected == 0 {
+                    crate::backend::Launcher::Steam
+                } else {
+                    crate::backend::Launcher::Lutris
+                };
+                
+                let is_installed = tool_manager_for_dropdown.lock()
+                    .expect("Failed to lock tool manager")
+                    .is_tool_installed(&version_for_dropdown, &launcher);
+                
+                action_button_for_dropdown.remove_css_class("suggested-action");
+                action_button_for_dropdown.remove_css_class("destructive-action");
+                
+                if is_installed {
+                    action_button_for_dropdown.set_label("Delete");
+                    action_button_for_dropdown.add_css_class("destructive-action");
+                } else {
+                    action_button_for_dropdown.set_label("Install");
+                    action_button_for_dropdown.add_css_class("suggested-action");
+                }
+            });
+            
             // Clone for closure
             let download_url = version.download_url.clone();
             let version_str = version.version.clone();
             let tool_name = tool.name.clone();
-            let launcher = tool.launcher.clone();
+            let launcher_dropdown_for_button = launcher_dropdown.clone();
             let tool_manager_clone = tool_manager.clone();
             let downloader_clone = downloader.clone();
             let toast_overlay_clone = toast_overlay.clone();
@@ -226,7 +326,15 @@ impl MainWindow {
                 let download_url = download_url.clone();
                 let version = version_str.clone();
                 let tool_name = tool_name.clone();
-                let launcher = launcher.clone();
+                
+                // Get selected launcher from dropdown
+                let selected = launcher_dropdown_for_button.selected();
+                let launcher = if selected == 0 {
+                    crate::backend::Launcher::Steam
+                } else {
+                    crate::backend::Launcher::Lutris
+                };
+                
                 let tool_manager = tool_manager_clone.clone();
                 let downloader = downloader_clone.clone();
                 let toast_overlay = toast_overlay_clone.clone();
@@ -322,6 +430,7 @@ impl MainWindow {
                 }
             });
             
+            version_row.add_suffix(&launcher_dropdown);
             version_row.add_suffix(&action_button);
             expander.add_row(&version_row);
         }
@@ -368,12 +477,17 @@ impl MainWindow {
             })
             .await?;
         
-        // Extract to install path
+        // Extract to install path with specific directory name matching the version
         progress_callback("Extracting...".to_string());
         downloader.lock()
             .expect("Failed to lock downloader")
-            .extract_archive(&archive_path, &install_path)
+            .extract_archive_to_specific_dir(&archive_path, &install_path, version)
             .await?;
+        
+        // Record installation in database
+        if let Ok(db) = crate::backend::Database::new() {
+            let _ = db.add_installed_runner(version, launcher);
+        }
         
         // Clean up downloaded archive
         let _ = tokio::fs::remove_file(&archive_path).await;
@@ -397,62 +511,19 @@ impl MainWindow {
         if version_path.exists() {
             // Delete the directory
             tokio::fs::remove_dir_all(&version_path).await?;
+            
+            // Remove from database
+            if let Ok(db) = crate::backend::Database::new() {
+                let _ = db.remove_installed_runner(version, launcher);
+            }
+            
             Ok(format!("{} deleted successfully!", version))
         } else {
             Err(anyhow::anyhow!("Tool version {} not found", version))
         }
     }
 
-    async fn install_tool(
-        tool_name: &str,
-        tool_manager: Arc<Mutex<ToolManager>>,
-        downloader: Arc<Mutex<Downloader>>,
-    ) -> anyhow::Result<String> {
-        // Fetch available tools to get download URL
-        let tools = tool_manager.lock()
-            .expect("Failed to lock tool manager")
-            .fetch_available_tools()
-            .await?;
-        
-        let tool = tools.iter()
-            .find(|t| t.name == tool_name)
-            .ok_or_else(|| anyhow::anyhow!("Tool '{}' not found", tool_name))?;
-        
-        // Get install path
-        let install_path = tool_manager.lock()
-            .expect("Failed to lock tool manager")
-            .get_install_path(&tool.launcher)?;
-        
-        // Create install directory if it doesn't exist
-        tokio::fs::create_dir_all(&install_path).await?;
-        
-        // Determine archive filename from URL
-        let url_path = tool.download_url.split('/').last()
-            .ok_or_else(|| anyhow::anyhow!("Invalid download URL"))?;
-        
-        // Download to temp directory
-        let temp_dir = std::env::temp_dir();
-        let archive_path = temp_dir.join(url_path);
-        
-        // Download the file
-        downloader.lock()
-            .expect("Failed to lock downloader")
-            .download_file(&tool.download_url, &archive_path)
-            .await?;
-        
-        // Extract to install path
-        downloader.lock()
-            .expect("Failed to lock downloader")
-            .extract_archive(&archive_path, &install_path)
-            .await?;
-        
-        // Clean up downloaded archive
-        let _ = tokio::fs::remove_file(&archive_path).await;
-        
-        Ok(format!("{} {} installed successfully!", tool.name, tool.version))
-    }
-
-    fn setup_menu(menu_button: &gtk::MenuButton, window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay) {
+    fn setup_menu(menu_button: &gtk::MenuButton, window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay, tool_manager: Arc<Mutex<ToolManager>>) {
         let menu = gtk::gio::Menu::new();
         
         menu.append(Some("Preferences"), Some("app.preferences"));
@@ -464,8 +535,9 @@ impl MainWindow {
         let preferences_action = gtk::gio::SimpleAction::new("preferences", None);
         let window_clone = window.clone();
         let toast_overlay_clone = toast_overlay.clone();
+        let tool_manager_clone = tool_manager.clone();
         preferences_action.connect_activate(move |_, _| {
-            Self::show_preferences_dialog(&window_clone, &toast_overlay_clone);
+            Self::show_preferences_dialog(&window_clone, &toast_overlay_clone, tool_manager_clone.clone());
         });
         
         let about_action = gtk::gio::SimpleAction::new("about", None);
@@ -479,7 +551,7 @@ impl MainWindow {
         app.add_action(&about_action);
     }
 
-    fn show_preferences_dialog(window: &adw::ApplicationWindow, _toast_overlay: &adw::ToastOverlay) {
+    fn show_preferences_dialog(window: &adw::ApplicationWindow, toast_overlay: &adw::ToastOverlay, tool_manager: Arc<Mutex<ToolManager>>) {
         let dialog = adw::PreferencesWindow::builder()
             .transient_for(window)
             .modal(true)
@@ -497,21 +569,162 @@ impl MainWindow {
         // Paths group
         let paths_group = adw::PreferencesGroup::builder()
             .title("Installation Paths")
-            .description("Configure where compatibility tools are installed")
+            .description("Configure where compatibility tools are installed. Leave empty for defaults.")
             .build();
         
-        // Steam path
+        // Get current paths
+        let current_steam_path = {
+            let manager = tool_manager.lock().expect("Failed to lock tool manager");
+            manager.get_install_path(&crate::backend::Launcher::Steam)
+                .ok()
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.steam/root/compatibilitytools.d".to_string())
+        };
+        
+        let current_lutris_path = {
+            let manager = tool_manager.lock().expect("Failed to lock tool manager");
+            manager.get_install_path(&crate::backend::Launcher::Lutris)
+                .ok()
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.local/share/lutris/runners/wine".to_string())
+        };
+        
+        // Steam path row with directory picker
         let steam_row = adw::ActionRow::builder()
             .title("Steam Tools Path")
-            .subtitle("~/.steam/root/compatibilitytools.d")
+            .subtitle(&current_steam_path)
             .build();
+        
+        let steam_button = Button::builder()
+            .icon_name("folder-open-symbolic")
+            .valign(gtk::Align::Center)
+            .build();
+        steam_button.add_css_class("flat");
+        
+        let tool_manager_steam = tool_manager.clone();
+        let toast_overlay_steam = toast_overlay.clone();
+        let steam_row_clone = steam_row.clone();
+        let window_clone = window.clone();
+        steam_button.connect_clicked(move |_| {
+            let file_dialog = gtk::FileDialog::builder()
+                .title("Select Steam Tools Directory")
+                .modal(true)
+                .build();
+            
+            let tool_manager = tool_manager_steam.clone();
+            let toast_overlay = toast_overlay_steam.clone();
+            let steam_row = steam_row_clone.clone();
+            
+            file_dialog.select_folder(Some(&window_clone), gtk::gio::Cancellable::NONE, move |result| {
+                if let Ok(folder) = result {
+                    if let Some(path) = folder.path() {
+                        tool_manager.lock().expect("Failed to lock").set_steam_path(Some(path.clone()));
+                        if let Some(path_str) = path.to_str() {
+                            steam_row.set_subtitle(path_str);
+                        }
+                        let toast = adw::Toast::new("Steam path updated");
+                        toast.set_timeout(3);
+                        toast_overlay.add_toast(toast);
+                    }
+                }
+            });
+        });
+        
+        steam_row.add_suffix(&steam_button);
+        
+        // Reset button for Steam path
+        let steam_reset_button = Button::builder()
+            .icon_name("edit-clear-symbolic")
+            .valign(gtk::Align::Center)
+            .tooltip_text("Reset to default")
+            .build();
+        steam_reset_button.add_css_class("flat");
+        
+        let tool_manager_steam_reset = tool_manager.clone();
+        let toast_overlay_steam_reset = toast_overlay.clone();
+        let steam_row_reset = steam_row.clone();
+        steam_reset_button.connect_clicked(move |_| {
+            tool_manager_steam_reset.lock().expect("Failed to lock").set_steam_path(None);
+            let default_path = dirs::home_dir()
+                .map(|h| h.join(".steam/root/compatibilitytools.d"))
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.steam/root/compatibilitytools.d".to_string());
+            steam_row_reset.set_subtitle(&default_path);
+            let toast = adw::Toast::new("Steam path reset to default");
+            toast.set_timeout(3);
+            toast_overlay_steam_reset.add_toast(toast);
+        });
+        
+        steam_row.add_suffix(&steam_reset_button);
         paths_group.add(&steam_row);
         
-        // Lutris path
+        // Lutris path row with directory picker
         let lutris_row = adw::ActionRow::builder()
             .title("Lutris Runners Path")
-            .subtitle("~/.local/share/lutris/runners/wine")
+            .subtitle(&current_lutris_path)
             .build();
+        
+        let lutris_button = Button::builder()
+            .icon_name("folder-open-symbolic")
+            .valign(gtk::Align::Center)
+            .build();
+        lutris_button.add_css_class("flat");
+        
+        let tool_manager_lutris = tool_manager.clone();
+        let toast_overlay_lutris = toast_overlay.clone();
+        let lutris_row_clone = lutris_row.clone();
+        let window_clone = window.clone();
+        lutris_button.connect_clicked(move |_| {
+            let file_dialog = gtk::FileDialog::builder()
+                .title("Select Lutris Runners Directory")
+                .modal(true)
+                .build();
+            
+            let tool_manager = tool_manager_lutris.clone();
+            let toast_overlay = toast_overlay_lutris.clone();
+            let lutris_row = lutris_row_clone.clone();
+            
+            file_dialog.select_folder(Some(&window_clone), gtk::gio::Cancellable::NONE, move |result| {
+                if let Ok(folder) = result {
+                    if let Some(path) = folder.path() {
+                        tool_manager.lock().expect("Failed to lock").set_lutris_path(Some(path.clone()));
+                        if let Some(path_str) = path.to_str() {
+                            lutris_row.set_subtitle(path_str);
+                        }
+                        let toast = adw::Toast::new("Lutris path updated");
+                        toast.set_timeout(3);
+                        toast_overlay.add_toast(toast);
+                    }
+                }
+            });
+        });
+        
+        lutris_row.add_suffix(&lutris_button);
+        
+        // Reset button for Lutris path
+        let lutris_reset_button = Button::builder()
+            .icon_name("edit-clear-symbolic")
+            .valign(gtk::Align::Center)
+            .tooltip_text("Reset to default")
+            .build();
+        lutris_reset_button.add_css_class("flat");
+        
+        let tool_manager_lutris_reset = tool_manager.clone();
+        let toast_overlay_lutris_reset = toast_overlay.clone();
+        let lutris_row_reset = lutris_row.clone();
+        lutris_reset_button.connect_clicked(move |_| {
+            tool_manager_lutris_reset.lock().expect("Failed to lock").set_lutris_path(None);
+            let default_path = dirs::home_dir()
+                .map(|h| h.join(".local/share/lutris/runners/wine"))
+                .and_then(|p| p.to_str().map(|s| s.to_string()))
+                .unwrap_or_else(|| "~/.local/share/lutris/runners/wine".to_string());
+            lutris_row_reset.set_subtitle(&default_path);
+            let toast = adw::Toast::new("Lutris path reset to default");
+            toast.set_timeout(3);
+            toast_overlay_lutris_reset.add_toast(toast);
+        });
+        
+        lutris_row.add_suffix(&lutris_reset_button);
         paths_group.add(&lutris_row);
         
         page.add(&paths_group);
@@ -546,7 +759,7 @@ impl MainWindow {
             .application_name("ProtonUp-GTK")
             .application_icon("com.github.Mar0xy.ProtonUpGtk")
             .developer_name("Mar0xy")
-            .version("0.3.0")
+            .version("0.3.1")
             .comments("Install and manage compatibility tools for Steam and Lutris")
             .website("https://github.com/Mar0xy/protonup-gtk")
             .issue_url("https://github.com/Mar0xy/protonup-gtk/issues")
@@ -558,7 +771,6 @@ impl MainWindow {
             &[
                 "GE-Proton by GloriousEggroll",
                 "Wine-GE by GloriousEggroll",
-                "Luxtorpeda by luxtorpeda-dev",
                 "Spritz-Wine by NelloKudo",
                 "dwproton by Dawn Wine",
             ],
@@ -569,5 +781,7 @@ impl MainWindow {
 
     pub fn present(&self) {
         self.window.present();
+        // Automatically fetch tools list on startup
+        self.refresh_tools_list();
     }
 }

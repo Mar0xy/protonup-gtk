@@ -49,9 +49,8 @@ A preferences group titled "Compatibility Tools" with description "Select a vers
 ##### Supported Tools:
 1. **GE-Proton** (Steam) - Proton compatibility tool with additional fixes
 2. **Wine-GE** (Lutris) - Wine with additional game fixes
-3. **Luxtorpeda** (Steam) - Steam Play compatibility tool for native Linux games
-4. **Spritz-Wine** (Lutris) - Wine builds optimized for gaming performance
-5. **dwproton** (Steam) - Dawn Wine Proton - Proton fork with improvements
+3. **Spritz-Wine** (Lutris) - Wine builds optimized for gaming performance
+4. **dwproton** (Steam) - Dawn Wine Proton - Proton fork with improvements
 
 #### Refresh Button
 - Centered button labeled "Refresh Tool List"
@@ -77,15 +76,21 @@ Accessed via Menu → Preferences
 Icon: preferences-system-symbolic
 
 #### Installation Paths Group
-Description: "Configure where compatibility tools are installed"
+Description: "Configure where compatibility tools are installed. Leave empty for defaults."
 
 - **Steam Tools Path**
-  - Subtitle: `~/.steam/root/compatibilitytools.d`
-  - (Currently display-only)
+  - Shows current path in subtitle
+  - Default: `~/.steam/root/compatibilitytools.d`
+  - Folder button (📁) opens directory picker to select custom path
+  - Clear button (✕) resets to default path
+  - Toast notification confirms changes
 
 - **Lutris Runners Path**
-  - Subtitle: `~/.local/share/lutris/runners/wine`
-  - (Currently display-only)
+  - Shows current path in subtitle
+  - Default: `~/.local/share/lutris/runners/wine`
+  - Folder button (📁) opens directory picker to select custom path
+  - Clear button (✕) resets to default path
+  - Toast notification confirms changes
 
 #### Updates Group
 Description: "Automatic update settings"
@@ -111,7 +116,6 @@ Shows:
 ### Credits Section: "Compatibility Tools"
 - GE-Proton by GloriousEggroll
 - Wine-GE by GloriousEggroll
-- Luxtorpeda by luxtorpeda-dev
 - Spritz-Wine by NelloKudo
 - dwproton by Dawn Wine
 
@@ -143,6 +147,15 @@ Shows:
 5. Toast: "GE-Proton GE-Proton9-14 installed successfully!"
 ```
 
+### Application Startup (NEW: Auto-Fetch)
+
+1. Application window opens
+2. **Automatically** fetches tool list in background
+3. Tool list populates with expandable rows (last 4 versions each)
+4. Toast notification: "Loaded X compatibility tools"
+5. Tools remain visible until manual refresh
+6. No need to click "Refresh" on first launch
+
 ### Refreshing Tool List (Enhanced)
 
 1. Click **Refresh Tool List** button
@@ -152,6 +165,18 @@ Shows:
 5. Toast shows: "Loaded X compatibility tools"
 6. Button re-enabled
 7. Click any tool to expand and see versions
+
+### Configuring Installation Paths (NEW)
+
+1. Click menu button (⋮) in header
+2. Select "Preferences"
+3. Modal preferences window appears
+4. Click the **folder button (📁)** next to Steam or Lutris path
+5. Directory picker opens
+6. Select desired installation directory
+7. Toast notification confirms: "Steam path updated" or "Lutris path updated"
+8. Click the **clear button (✕)** to reset path to default
+9. Close preferences window
 
 ### Opening Preferences
 
